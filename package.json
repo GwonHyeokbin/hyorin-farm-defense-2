@@ -1,0 +1,23 @@
+{
+  "name": "hyorin-pixel-adventure",
+  "version": "1.0.0",
+  "private": true,
+  "description": "효린이의 픽셀 모험 — 네 단계로 성장하는 오프라인 횡스크롤 플랫폼 게임",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "fflate": "^0.8.2",
+    "phaser": "^3.90.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^7.1.9",
+    "vitest": "^3.2.4"
+  }
+}

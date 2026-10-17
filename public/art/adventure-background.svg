@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="640" viewBox="0 0 1024 640">
+  <defs>
+    <linearGradient id="sky" x2="0" y2="1"><stop stop-color="#a9dafa"/><stop offset="1" stop-color="#f2e9bd"/></linearGradient>
+    <linearGradient id="meadow" x2="0" y2="1"><stop stop-color="#a5ce77"/><stop offset="1" stop-color="#72a95e"/></linearGradient>
+    <pattern id="distantCrops" width="30" height="24" patternUnits="userSpaceOnUse"><path d="M5 24v-9m10 9V10m10 14v-8" stroke="#789d5c" stroke-width="3"/><path d="m3 16 3-4m6 2 3-5m8 8 3-5" stroke="#c4ce74" stroke-width="2"/></pattern>
+  </defs>
+  <rect width="1024" height="640" fill="url(#sky)"/>
+  <circle cx="846" cy="94" r="37" fill="#ffe7a0"/><circle cx="846" cy="94" r="53" fill="#ffe7a0" opacity=".22"/>
+  <g fill="#fffdf1" opacity=".8"><path d="M86 121h102q18 0 18 14t-18 14H74q-18 0-18-14t18-14q2-20 24-20 14 0 24 11 9-5 18-5 20 0 22 14z"/><path d="M482 79h94q16 0 16 12t-16 12h-106q-15 0-15-12t15-12q2-17 20-17 12 0 21 9 7-4 14-4 18 0 20 12z"/></g>
+  <path d="M0 323Q115 250 240 313T480 306T720 315T960 293T1024 311V470H0Z" fill="#83bb8e"/>
+  <path d="M0 365Q130 292 260 348T520 337T780 351T1024 331V498H0Z" fill="#a8cf86"/>
+  <path d="M0 391Q165 365 320 396T640 388T960 379T1024 390V560H0Z" fill="url(#meadow)"/>
+  <path d="M0 422Q165 397 320 427T640 419T960 410T1024 421V465H0Z" fill="#92bf6e" opacity=".65"/>
+  <path d="M18 443Q150 424 283 448T548 440T815 432T1024 444V476H18Z" fill="url(#distantCrops)" opacity=".66"/>
+  <!-- A small farmhouse sits behind the running path. -->
+  <g stroke="#725841" stroke-width="5" stroke-linejoin="round">
+    <path d="M706 338 775 286l72 52v111H706Z" fill="#f4d596"/>
+    <path d="m695 341 80-67 83 66-13 15-70-55-68 56z" fill="#bc7050"/>
+    <path d="M758 389h38v60h-38z" fill="#79543c"/><path d="M769 390v58m-10-28h28" fill="none" stroke="#d8b17c" stroke-width="4"/>
+    <path d="M716 359h27v28h-27zM811 359h25v28h-25z" fill="#b7e0de"/>
+  </g>
+  <g>
+    <path d="M105 468v-73m122 74v-96m576 97v-86m121 86v-108" stroke="#76543a" stroke-width="13" stroke-linecap="square"/>
+    <g fill="#559768" stroke="#d0d88d" stroke-width="4">
+      <circle cx="102" cy="377" r="39"/><circle cx="137" cy="362" r="42"/><circle cx="229" cy="359" r="43"/>
+      <circle cx="800" cy="371" r="42"/><circle cx="823" cy="347" r="48"/><circle cx="923" cy="345" r="45"/><circle cx="952" cy="369" r="40"/>
+    </g>
+    <g fill="#e7b16b"><circle cx="97" cy="372" r="5"/><circle cx="131" cy="355" r="5"/><circle cx="219" cy="355" r="5"/><circle cx="818" cy="342" r="5"/><circle cx="935" cy="338" r="5"/></g>
+  </g>
+  <!-- A repeating fence gives the world a clear horizontal direction. -->
+  <g stroke="#a8744b" stroke-width="9" stroke-linecap="round" opacity=".9">
+    <path d="M0 491H1024M0 516H1024"/>
+    <path d="M27 481v46m71-46v46m71-46v46m71-46v46m71-46v46m71-46v46m71-46v46m71-46v46m71-46v46m71-46v46m71-46v46m71-46v46m71-46v46m71-46v46m71-46v46"/>
+  </g>
+  <g fill="#fff5cb" opacity=".88"><path d="m322 477 8-15 8 15z"/><path d="m565 476 7-13 7 13z"/><path d="m687 476 8-15 8 15z"/><path d="m978 476 7-13 7 13z"/></g>
+</svg>

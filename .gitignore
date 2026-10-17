@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.vite/
+coverage/
+
+# Local source material and temporary previews
+public/assets/hyorin/hyorin-stage-sprite-sheet.png
+tools/.sprite-preview.*
