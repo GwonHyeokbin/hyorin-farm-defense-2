@@ -81,16 +81,21 @@ export class GameApp {
   private readonly updateTouchLayout = (): void => {
     const mobileUserAgent = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     const coarsePointer = window.matchMedia('(pointer: coarse), (any-pointer: coarse)').matches;
+    const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
+    const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+    this.root.style.setProperty('--touch-viewport-width', `${viewportWidth}px`);
+    this.root.style.setProperty('--touch-viewport-height', `${viewportHeight}px`);
+    this.root.style.setProperty('--touch-landscape-stage-width', `${Math.max(1, (viewportHeight - 54) * 1.58)}px`);
     const touchLayout = shouldUseTouchLayout({
-      viewportWidth: window.innerWidth,
+      viewportWidth,
       screenWidth: window.screen.width,
       screenHeight: window.screen.height,
       maxTouchPoints: navigator.maxTouchPoints,
       coarsePointer,
       mobileUserAgent,
     });
-    const landscape = window.innerWidth > window.innerHeight;
-    const compactLandscape = shouldCollapseLandscapeAmmoPanel({ landscape, viewportWidth: window.innerWidth, screenWidth: window.screen.width });
+    const landscape = viewportWidth > viewportHeight;
+    const compactLandscape = shouldCollapseLandscapeAmmoPanel({ landscape, viewportWidth, screenWidth: window.screen.width });
     this.root.classList.toggle('touch-device', touchLayout);
     this.root.classList.toggle('touch-landscape', touchLayout && landscape);
     this.root.classList.toggle('compact-landscape', touchLayout && compactLandscape);

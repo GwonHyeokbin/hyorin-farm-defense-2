@@ -367,7 +367,7 @@ kbd { padding: 3px 5px; border: 1px solid #ded8c7; border-radius: 5px; backgroun
 #app.touch-landscape.in-game .app-shell { width: 100%; max-width: none; height: 100%; min-height: 0; padding: 0; }
 #app.touch-landscape.in-game .topbar, #app.touch-landscape.in-game > .app-shell > .site-footer { display: none; }
 #app.touch-landscape.in-game main { min-height: 0; overflow: hidden; }
-#app.touch-landscape.in-game .game-view { position: fixed; inset: 0; width: 100vw; height: 100dvh; min-height: 0; max-width: none; margin: 0; padding: 0; display: block; overflow: hidden; overscroll-behavior: none; touch-action: none; }
+#app.touch-landscape.in-game .game-view { position: fixed; top: 0; left: 0; right: auto; bottom: auto; width: var(--touch-viewport-width, 100vw); height: var(--touch-viewport-height, 100dvh); min-height: 0; max-width: none; margin: 0; padding: 0; display: block; overflow: hidden; overscroll-behavior: none; touch-action: none; }
 #app.touch-landscape .game-statusbar { position: fixed; z-index: 6; top: max(4px, env(safe-area-inset-top)); left: max(6px, env(safe-area-inset-left)); right: max(6px, env(safe-area-inset-right)); min-height: 38px; gap: 5px; padding: 0; }
 #app.touch-landscape .status-brand { display: none; }
 #app.touch-landscape .status-metrics { min-width: 0; gap: 4px; }
@@ -377,7 +377,7 @@ kbd { padding: 3px 5px; border: 1px solid #ded8c7; border-radius: 5px; backgroun
 #app.touch-landscape .game-screen-actions { display: flex; gap: 3px; }
 #app.touch-landscape .screen-mode-button { flex: 0 0 32px; width: 32px; height: 32px; border-radius: 9px; background: rgb(255 253 245 / 94%); }
 #app.touch-landscape .pause-button { flex: 0 0 34px; width: 34px; height: 34px; min-height: 34px; border-radius: 9px; }
-#app.touch-landscape .game-stage { position: fixed; z-index: 1; top: calc(50% + 23px); left: calc((100vw - 124px) / 2); width: min(calc(100vw - 136px - env(safe-area-inset-left) - env(safe-area-inset-right)), calc((100dvh - 48px) * 1.58)); max-width: none; height: auto; aspect-ratio: 1024 / 640; margin: 0; border-width: 3px; border-radius: 11px; transform: translate(-50%, -50%); touch-action: none; }
+#app.touch-landscape .game-stage { position: absolute; z-index: 1; top: calc(50% - 12px); left: calc(50% - 62px); width: min(calc(var(--touch-viewport-width, 100vw) - 136px - env(safe-area-inset-left) - env(safe-area-inset-right)), var(--touch-landscape-stage-width, calc(158dvh - 85px))); max-width: none; height: auto; aspect-ratio: 1024 / 640; margin: 0; border-width: 3px; border-radius: 11px; transform: translate(-50%, -50%); touch-action: none; }
 #app.touch-landscape .stage-top-hud { top: 5px; left: 6px; right: 6px; }
 #app.touch-landscape .health-pill { min-height: 27px; gap: 4px; padding: 3px 5px; border-radius: 8px; }
 #app.touch-landscape .health-pill > span { font-size: 8px; }
@@ -401,17 +401,15 @@ kbd { padding: 3px 5px; border: 1px solid #ded8c7; border-radius: 5px; backgroun
 #app.touch-landscape .attack-pad { flex: 0 0 62px; width: 62px; height: 62px; min-height: 62px; opacity: .78; pointer-events: auto; }
 #app.touch-landscape .attack-pad span { font-size: 18px; }
 #app.touch-landscape .attack-pad b { font-size: 8px; }
-#app.touch-landscape .pointer-guide { position: fixed; z-index: 4; right: 120px; bottom: max(5px, env(safe-area-inset-bottom)); left: 236px; display: block; padding: 4px 6px; border-radius: 8px; color: #435943; background: rgb(255 253 245 / 82%); font-size: 8px; line-height: 1.3; text-align: center; pointer-events: none; }
-#app.touch-landscape .landscape-touch-guide { display: inline; }
+#app.touch-landscape .pointer-guide { display: none; }
+#app.touch-landscape .landscape-touch-guide { display: none; }
 #app.touch-landscape .portrait-touch-guide { display: none; }
 #app.touch-landscape .ammo-panel-toggle { display: none; }
 #app.touch-landscape.compact-landscape .ammo-toolbar { display: none; }
 #app.touch-landscape.compact-landscape .ammo-panel-toggle { display: grid; }
-#app.touch-landscape.compact-landscape #game-view .game-stage { left: 50%; width: min(calc(100vw - 12px - env(safe-area-inset-left) - env(safe-area-inset-right)), calc((100dvh - 48px) * 1.58)); }
-#app.touch-landscape.compact-landscape #game-view.ammo-panel-open .game-stage { left: calc((100vw - 112px) / 2); width: min(calc(100vw - 124px - env(safe-area-inset-left) - env(safe-area-inset-right)), calc((100dvh - 48px) * 1.58)); }
+#app.touch-landscape.compact-landscape #game-view .game-stage { left: 50%; width: min(calc(var(--touch-viewport-width, 100vw) - 12px - env(safe-area-inset-left) - env(safe-area-inset-right)), var(--touch-landscape-stage-width, calc(158dvh - 85px))); }
+#app.touch-landscape.compact-landscape #game-view.ammo-panel-open .game-stage { left: calc(50% - 56px); width: min(calc(var(--touch-viewport-width, 100vw) - 124px - env(safe-area-inset-left) - env(safe-area-inset-right)), var(--touch-landscape-stage-width, calc(158dvh - 85px))); }
 #app.touch-landscape.compact-landscape #game-view.ammo-panel-open .ammo-toolbar { display: flex; right: max(5px, env(safe-area-inset-right)); width: min(104px, 18vw); }
-#app.touch-landscape.compact-landscape .pointer-guide { right: 8px; left: 236px; }
-#app.touch-landscape.compact-landscape #game-view.ammo-panel-open .pointer-guide { right: 112px; }
 
 @media (prefers-reduced-motion: no-preference) and (pointer: coarse) {
   .dpad button, .attack-pad, .jump-pad { -webkit-tap-highlight-color: transparent; }
