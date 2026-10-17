@@ -298,6 +298,7 @@ export class FarmScene extends Phaser.Scene {
       if (event.type === 'player-hit') this.playerHitTimer = 0.48;
       if (event.type === 'special-attack') this.specialEffect = { type: event.text ?? 'blast', x: event.x ?? this.state.player.x, y: event.y ?? this.state.player.y, timer: 0.48 };
       this.callbacks.onEvent(event, this.snapshot());
+      if (event.type === 'life-complete') this.callbacks.onAutosave(this.snapshot());
       if (event.type === 'wave-clear') {
         this.paused = true;
         this.clearPointerAndTouchControls();

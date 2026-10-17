@@ -12,6 +12,7 @@ export const DAD_MESSAGE_TEXTS = [
   '괜찮아 아빠한테 기대',
   '고민있으면 아빠한테 말하렴',
 ] as const;
+export const LEVEL_100_MESSAGE = '효린이는 행복한 가정에서 환생하여 하고 싶은 일 마음껏 하며 원하는 모든 것을 이루고 살아가게 됩니다. 게임은 계속 진행할 수 있습니다.';
 export const PLATFORM_SURFACES = [
   { x: 340, y: 460, width: 176 }, { x: 690, y: 390, width: 184 },
   { x: 1090, y: 475, width: 208 }, { x: 1485, y: 408, width: 194 },
@@ -57,6 +58,7 @@ export function createGameState(seed = Date.now() >>> 0): GameState {
     level: 1,
     experience: 0,
     experienceToNext: 100,
+    lifeCompleteShown: false,
     ammo: 'bb',
     ammoCounts: createAmmoCounts(),
     milkPickups: structuredClone(STARTING_MILK),
@@ -205,7 +207,14 @@ function increaseExperience(state: GameState, amount: number, events: EngineEven
     state.level += 1;
     state.experienceToNext = state.level * 100;
     events.push({ type: 'level-up', text: `레벨 ${state.level}! 공격 속도 +1%` });
+    announceLevel100(state, events);
   }
+}
+
+function announceLevel100(state: GameState, events: EngineEvent[]): void {
+  if (state.level < 100 || state.lifeCompleteShown) return;
+  state.lifeCompleteShown = true;
+  events.push({ type: 'life-complete', text: LEVEL_100_MESSAGE });
 }
 
 function spawnDadMessage(state: GameState): void {
@@ -250,6 +259,7 @@ function updateDadMessages(state: GameState, dt: number, events: EngineEvent[]):
       state.level += 1;
       state.experienceToNext = state.level * 100;
       events.push({ type: 'dad-message', text: DAD_MESSAGE_TEXTS[pickup.phraseIndex] });
+      announceLevel100(state, events);
       continue;
     }
     if (pickup.life > 0) remaining.push(pickup);
@@ -477,6 +487,7 @@ export function stepWorld(state: GameState, rawDt: number, controls: Controls = 
   const dt = Math.max(0, Math.min(rawDt, 0.05));
   if (dt === 0 || state.farm.health <= 0 || state.player.hp <= 0) return [];
   const events: EngineEvent[] = [];
+  announceLevel100(state, events);
   state.elapsed += dt;
   state.dadMessageSpawnTimer = Math.max(0, state.dadMessageSpawnTimer - dt);
   if (state.dadMessageSpawnTimer <= 0) {

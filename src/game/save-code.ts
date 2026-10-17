@@ -123,6 +123,7 @@ export function isValidGameState(value: unknown): value is GameState {
   if (value.level !== undefined && (!finite(value.level, 1, 100_000) || !Number.isInteger(value.level))) return false;
   if (value.experience !== undefined && !finite(value.experience, 0, 100_000_000)) return false;
   if (value.experienceToNext !== undefined && !finite(value.experienceToNext, 1, 100_000_000)) return false;
+  if (value.lifeCompleteShown !== undefined && typeof value.lifeCompleteShown !== 'boolean') return false;
   if (value.ammo !== undefined && !isAmmoType(value.ammo)) return false;
   if (value.ammoCounts !== undefined) {
     if (!isRecord(value.ammoCounts)) return false;
@@ -206,6 +207,7 @@ export function normalizeGameState(value: unknown): GameState | null {
   state.experience = finite(state.experience, 0, 100_000_000) ? state.experience : 0;
   state.experienceToNext = finite(state.experienceToNext, 1, 100_000_000) ? state.experienceToNext : state.level * 100;
   if (state.experience >= state.experienceToNext) state.experience = state.experienceToNext - 1;
+  state.lifeCompleteShown = state.lifeCompleteShown === true;
   state.ammo = isAmmoType(state.ammo) ? state.ammo : 'bb';
   state.ammoCounts = normalizeAmmoCounts(isRecord(state.ammoCounts) ? state.ammoCounts as GameState['ammoCounts'] : undefined);
   state.milkPickups = Array.isArray(state.milkPickups) ? state.milkPickups : [

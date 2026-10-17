@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { FarmScene } from './game/FarmScene';
 import type { FarmSceneCallbacks } from './game/FarmScene';
-import { createGameState, restoreSafeCheckpoint, WORLD } from './game/engine';
+import { createGameState, LEVEL_100_MESSAGE, restoreSafeCheckpoint, WORLD } from './game/engine';
 import { createSaveCode, restoreSaveCode, SaveCodeError, isValidGameState } from './game/save-code';
 import { AudioKit } from './game/AudioKit';
 import { clearAutosave, clearRecords, getSettings, highestScore, loadAutosave, loadRecords, saveAutosave, saveRecord, setSettings } from './game/storage';
@@ -505,6 +505,7 @@ export class GameApp {
     }
     if (event.type === 'level-up') this.showToast(event.text ?? `레벨 ${state.level} 상승! 공격 속도 +1%`);
     if (event.type === 'dad-message') this.showToast(`${event.text ?? '아빠의 응원'} · 레벨 ${state.level} 상승!`);
+    if (event.type === 'life-complete') this.showToast(event.text ?? LEVEL_100_MESSAGE, 10_000, true);
     if (event.type === 'milk' || event.type === 'life-lost') this.showToast(event.text ?? '효린이의 성장 단계가 바뀌었어요.');
     if (event.type === 'special-attack') this.audio.play('special-attack');
     if (event.type === 'milk' || event.type === 'jump' || event.type === 'life-lost') this.audio.play(event.type);
@@ -789,13 +790,14 @@ export class GameApp {
     this.focusModal();
   }
 
-  private showToast(message: string): void {
+  private showToast(message: string, durationMs = 1800, ending = false): void {
     const toast = this.root.querySelector<HTMLElement>('#wave-banner');
     if (!toast) return;
     toast.textContent = message;
+    toast.classList.toggle('is-ending', ending);
     toast.classList.add('is-visible');
     if (this.toastTimer) window.clearTimeout(this.toastTimer);
-    this.toastTimer = window.setTimeout(() => toast.classList.remove('is-visible'), 1800);
+    this.toastTimer = window.setTimeout(() => toast.classList.remove('is-visible', 'is-ending'), durationMs);
   }
 
   private modalRoot(): HTMLElement {

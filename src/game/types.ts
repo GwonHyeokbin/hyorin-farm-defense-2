@@ -123,6 +123,7 @@ export interface GameState {
   level: number;
   experience: number;
   experienceToNext: number;
+  lifeCompleteShown: boolean;
   ammo: AmmoType;
   ammoCounts: Record<AmmoType, number>;
   milkPickups: MilkPickupState[];
@@ -156,7 +157,7 @@ export interface Controls {
 }
 
 export interface EngineEvent {
-  type: 'fire' | 'hit' | 'melee' | 'boulder' | 'level-up' | 'dad-message' | 'knockback' | 'groggy' | 'stun' | 'kill' | 'farm-hit' | 'player-hit' | 'wave-start' | 'wave-clear' | 'game-over' | 'milk' | 'special-attack' | 'jump' | 'life-lost';
+  type: 'fire' | 'hit' | 'melee' | 'boulder' | 'level-up' | 'dad-message' | 'life-complete' | 'knockback' | 'groggy' | 'stun' | 'kill' | 'farm-hit' | 'player-hit' | 'wave-start' | 'wave-clear' | 'game-over' | 'milk' | 'special-attack' | 'jump' | 'life-lost';
   text?: string;
   x?: number;
   y?: number;
