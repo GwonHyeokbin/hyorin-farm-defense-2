@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { createGameState, PLATFORM_SURFACES, stepWorld, WORLD } from './engine';
+import { normalizeAmmoCounts, refillAmmo } from './ammo';
 import { applyUpgrade, repairFarm, unlockBoulder } from './upgrades';
 import type { AmmoType, Controls, EngineEvent, GameState, PetType } from './types';
 import { purchasePet } from './pets';
@@ -116,13 +117,13 @@ export class FarmScene extends Phaser.Scene {
     this.playerSprite = this.add.sprite(120, WORLD.groundY, 'hyorin-stage-2-idle').setDisplaySize(58, 64).setOrigin(0.5, 1).setDepth(500);
     this.playerSprite.play('hyorin-stage-2-idle');
     this.cameras.main.setBounds(0, 0, WORLD.width, WORLD.height).startFollow(this.playerSprite, true, 0.12, 0.08);
-    this.slingshotSprite = this.add.image(145, WORLD.groundY - 36, 'slingshot').setDisplaySize(20, 27).setDepth(530);
+    this.slingshotSprite = this.add.image(145, WORLD.groundY - 36, 'slingshot').setDisplaySize(20, 27).setOrigin(0.5, 0.9).setDepth(530);
     this.stoneSprite = this.add.image(120, WORLD.groundY - 20, 'large-stone').setDisplaySize(28, 28).setVisible(false).setDepth(560);
     this.bars = this.add.graphics().setDepth(900);
     this.effects = this.add.graphics().setDepth(820);
     this.pauseKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
-    this.keys = (this.input.keyboard?.addKeys('A,D,LEFT,RIGHT,UP,J,F,SPACE') ?? {}) as Record<string, Phaser.Input.Keyboard.Key>;
-    this.input.keyboard?.addCapture([Phaser.Input.Keyboard.KeyCodes.SPACE, Phaser.Input.Keyboard.KeyCodes.LEFT, Phaser.Input.Keyboard.KeyCodes.RIGHT, Phaser.Input.Keyboard.KeyCodes.UP]);
+    this.keys = (this.input.keyboard?.addKeys('A,D,S,LEFT,RIGHT,UP,DOWN,J,F,SPACE') ?? {}) as Record<string, Phaser.Input.Keyboard.Key>;
+    this.input.keyboard?.addCapture([Phaser.Input.Keyboard.KeyCodes.SPACE, Phaser.Input.Keyboard.KeyCodes.LEFT, Phaser.Input.Keyboard.KeyCodes.RIGHT, Phaser.Input.Keyboard.KeyCodes.UP, Phaser.Input.Keyboard.KeyCodes.DOWN]);
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if ((pointer.wasTouch || pointer.leftButtonDown()) && this.state && !this.paused) {
         this.pointerAttack = true;
@@ -138,6 +139,7 @@ export class FarmScene extends Phaser.Scene {
   startRun(snapshot?: GameState): GameState {
     this.clearWorldSprites();
     this.state = snapshot ? structuredClone(snapshot) : createGameState();
+    this.state.ammoCounts = normalizeAmmoCounts(this.state.ammoCounts);
     this.paused = false;
     this.clearPointerAndTouchControls();
     this.ended = false;
@@ -197,7 +199,7 @@ export class FarmScene extends Phaser.Scene {
   }
 
   selectAmmo(ammo: AmmoType): void {
-    if (!this.state || this.state.ammo === ammo) return;
+    if (!this.state || this.state.ammo === ammo || this.state.ammoCounts[ammo] <= 0) return;
     this.state.ammo = ammo;
     this.publishSnapshot();
     this.callbacks.onAutosave(this.snapshot());
@@ -232,6 +234,14 @@ export class FarmScene extends Phaser.Scene {
     return true;
   }
 
+  purchaseAmmo(type: AmmoType): boolean {
+    if (!this.state || !refillAmmo(this.state, type)) return false;
+    this.renderState();
+    this.publishSnapshot();
+    this.callbacks.onAutosave(this.snapshot());
+    return true;
+  }
+
   repairRun(): boolean {
     if (!this.state || !repairFarm(this.state)) return false;
     this.renderState();
@@ -245,6 +255,7 @@ export class FarmScene extends Phaser.Scene {
     return {
       left: this.touchDirections.has('left') || key('A') || key('LEFT'),
       right: this.touchDirections.has('right') || key('D') || key('RIGHT'),
+      down: this.touchDirections.has('down') || key('S') || key('DOWN'),
       attack: this.pointerAttack || this.touchAttack || key('J') || key('F'),
       jump: this.consumeJumpInput(),
     };
@@ -346,7 +357,8 @@ export class FarmScene extends Phaser.Scene {
     this.playerSprite.setFlipX(state.player.facingX < -0.15);
     this.playerSprite.setAlpha(state.player.invulnerable > 0 && Math.floor(time * 16) % 2 === 0 ? 0.48 : 1);
     const aimAngle = Math.atan2(state.player.facingY, state.player.facingX);
-    this.slingshotSprite?.setPosition(state.player.x + state.player.facingX * 24, state.player.y - playerHeight * 0.56)
+    const handSide = state.player.facingX < -0.15 ? -1 : 1;
+    this.slingshotSprite?.setPosition(state.player.x + handSide * playerWidth * 0.2, state.player.y + footBob - playerHeight * 0.3)
       .setDisplaySize(20, 27)
       .setRotation(aimAngle + Math.PI / 2)
       .setDepth(state.player.y + 28);

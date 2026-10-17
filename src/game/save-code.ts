@@ -1,6 +1,6 @@
 import { zlibSync } from 'fflate';
 import type { GameState } from './types';
-import { createAmmoCounts, isAmmoType } from './ammo';
+import { isAmmoType, normalizeAmmoCounts } from './ammo';
 import { isPetType } from './pets';
 import { WORLD } from './engine';
 
@@ -118,7 +118,7 @@ export function isValidGameState(value: unknown): value is GameState {
   if (!finite(value.player.facingX, -1, 1) || !finite(value.player.facingY, -1, 1)) return false;
   if (value.player.stage !== undefined && ![1, 2, 3, 4].includes(Number(value.player.stage))) return false;
   if (value.player.lives !== undefined && (!finite(value.player.lives, 0, 9) || !Number.isInteger(value.player.lives))) return false;
-  if (value.player.jumpTimer !== undefined && !finite(value.player.jumpTimer, 0, 1)) return false;
+  if (value.player.jumpTimer !== undefined && !finite(value.player.jumpTimer, 0, 2)) return false;
   if (value.player.jumpCooldown !== undefined && !finite(value.player.jumpCooldown, 0, 10)) return false;
   if (value.level !== undefined && (!finite(value.level, 1, 100_000) || !Number.isInteger(value.level))) return false;
   if (value.experience !== undefined && !finite(value.experience, 0, 100_000_000)) return false;
@@ -196,8 +196,7 @@ export function normalizeGameState(value: unknown): GameState | null {
   state.experienceToNext = finite(state.experienceToNext, 1, 100_000_000) ? state.experienceToNext : state.level * 100;
   if (state.experience >= state.experienceToNext) state.experience = state.experienceToNext - 1;
   state.ammo = isAmmoType(state.ammo) ? state.ammo : 'bb';
-  const ammoDefaults = createAmmoCounts();
-  state.ammoCounts = { ...ammoDefaults, ...(isRecord(state.ammoCounts) ? state.ammoCounts : {}) } as GameState['ammoCounts'];
+  state.ammoCounts = normalizeAmmoCounts(isRecord(state.ammoCounts) ? state.ammoCounts as GameState['ammoCounts'] : undefined);
   state.milkPickups = Array.isArray(state.milkPickups) ? state.milkPickups : [
     { id: 1, x: 270, y: 520 }, { id: 2, x: 762, y: 520 }, { id: 3, x: 515, y: 244 },
   ];
@@ -210,7 +209,7 @@ export function normalizeGameState(value: unknown): GameState | null {
   state.player.lives = finite(state.player.lives, 0, 9) ? Math.floor(state.player.lives) : 3;
   state.player.velocityY = finite(state.player.velocityY, -5000, 5000) ? state.player.velocityY : 0;
   state.player.grounded = typeof state.player.grounded === 'boolean' ? state.player.grounded : state.player.y >= WORLD.groundY;
-  state.player.jumpTimer = finite(state.player.jumpTimer, 0, 1) ? state.player.jumpTimer : 0;
+  state.player.jumpTimer = finite(state.player.jumpTimer, 0, 2) ? state.player.jumpTimer : 0;
   state.player.jumpCooldown = finite(state.player.jumpCooldown, 0, 10) ? state.player.jumpCooldown : 0;
   if (legacy) {
     state.enemies = state.enemies.map((enemy) => ({
@@ -238,7 +237,7 @@ export async function restoreSaveCode(input: string): Promise<{ state: GameState
   const normalized = input.trim().replace(/[\r\n]/g, '').toUpperCase();
   if (normalized.length < 8 || normalized.length > MAX_CODE_LENGTH) throw new SaveCodeError('코드 길이가 올바르지 않아요.');
   if (!/^[A-Z0-9]+$/.test(normalized)) throw new SaveCodeError('코드에는 영문자와 숫자만 입력해 주세요.');
-  if (!normalized.startsWith('HPA')) throw new SaveCodeError('효린이의 픽셀 모험 코드가 아니에요.');
+  if (!normalized.startsWith('HPA')) throw new SaveCodeError('효린 농장 디펜스2 코드가 아니에요.');
   if (normalized.slice(3, 4) !== '1') throw new SaveCodeError('지원하지 않는 코드 버전이에요. 최신 게임에서 코드를 만들어 주세요.');
   if (!normalized.startsWith(CODE_PREFIX)) throw new SaveCodeError('코드 형식을 확인할 수 없어요.');
   let compressed: Uint8Array;

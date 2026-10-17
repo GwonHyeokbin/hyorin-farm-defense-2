@@ -1,5 +1,5 @@
 import type { Controls, EnemyKind, EnemyState, EngineEvent, GameState, GrowthStage, MilkPickupState } from './types';
-import { createAmmoCounts, getAmmoDefinition } from './ammo';
+import { AMMO_DEFINITIONS, createAmmoCounts, getAmmoDefinition } from './ammo';
 import { getPetDefinition } from './pets';
 
 export const WORLD = { width: 3072, height: 640, groundY: 560 } as const;
@@ -157,10 +157,15 @@ function spawnProjectile(state: GameState): boolean {
   const dx = target.x - player.x;
   const dy = target.y - sourceY;
   const length = Math.hypot(dx, dy) || 1;
-  if (state.ammoCounts[state.ammo] <= 0) state.ammo = 'bb';
-  const ammoType = state.ammo;
+  let ammoType = state.ammo;
+  if (state.ammoCounts[ammoType] <= 0) {
+    const nextAmmo = AMMO_DEFINITIONS.find((definition) => state.ammoCounts[definition.type] > 0);
+    if (!nextAmmo) return false;
+    ammoType = nextAmmo.type;
+    state.ammo = ammoType;
+  }
   const ammo = getAmmoDefinition(ammoType);
-  state.ammoCounts[ammoType] = Math.max(0, state.ammoCounts[ammoType] - 1);
+  state.ammoCounts[ammoType] -= 1;
   const damage = ammo.damage * (1 + state.upgrades.power * 0.12);
   state.projectiles.push({
     x: player.x + dx / length * 16,
@@ -172,6 +177,10 @@ function spawnProjectile(state: GameState): boolean {
     ammo: ammoType,
     targetId: target.id,
   });
+  if (state.ammoCounts[ammoType] === 0) {
+    const nextAmmo = AMMO_DEFINITIONS.find((definition) => state.ammoCounts[definition.type] > 0);
+    if (nextAmmo) state.ammo = nextAmmo.type;
+  }
   player.facingX = dx / length;
   player.facingY = dy / length;
   return true;
@@ -420,7 +429,12 @@ export function stepWorld(state: GameState, rawDt: number, controls: Controls = 
   const previousX = state.player.x;
   const previousY = state.player.y;
   state.player.x = PhaserMathClamp(previousX + vx * moveSpeed * dt, 28, WORLD.width - 28);
-  if (controls.jump && state.player.grounded && state.player.jumpCooldown <= 0) {
+  const dropThroughPlatform = Boolean(controls.down && controls.jump && state.player.grounded && state.player.y < WORLD.groundY);
+  if (dropThroughPlatform) {
+    state.player.grounded = false;
+    state.player.velocityY = 180;
+    state.player.jumpTimer = 0;
+  } else if (controls.jump && state.player.grounded && state.player.jumpCooldown <= 0) {
     state.player.velocityY = -620 - state.upgrades.fence * 24;
     state.player.grounded = false;
     state.player.jumpTimer = 0;
@@ -430,10 +444,12 @@ export function stepWorld(state: GameState, rawDt: number, controls: Controls = 
   if (!state.player.grounded) {
     state.player.jumpTimer = Math.min(2, state.player.jumpTimer + dt);
     state.player.velocityY = Math.min(900, state.player.velocityY + 1450 * dt);
+    // A recovery guard prevents stale airborne saves or missed contacts from leaving Hyorin suspended.
+    if (state.player.jumpTimer >= 1.35) state.player.velocityY = Math.max(360, state.player.velocityY);
     state.player.y += state.player.velocityY * dt;
     if (state.player.velocityY >= 0) {
       const landing = PLATFORM_SURFACES
-        .filter((platform) => previousY <= platform.y && state.player.y >= platform.y && state.player.x + 15 >= platform.x && state.player.x - 15 <= platform.x + platform.width)
+        .filter((platform) => !controls.down && previousY <= platform.y && state.player.y >= platform.y && state.player.x + 15 >= platform.x && state.player.x - 15 <= platform.x + platform.width)
         .sort((a, b) => a.y - b.y)[0];
       if (landing) {
         state.player.y = landing.y;
@@ -564,11 +580,6 @@ export function stepWorld(state: GameState, rawDt: number, controls: Controls = 
     state.player.meleeCooldown = 0;
     state.player.boulderCooldown = 0;
     state.player.invulnerable = 0;
-    state.ammoCounts.steelBb = Math.min(999, state.ammoCounts.steelBb + 4);
-    state.ammoCounts.stone = Math.min(999, state.ammoCounts.stone + 6);
-    state.ammoCounts.blast = Math.min(999, state.ammoCounts.blast + 2);
-    state.ammoCounts.lightning = Math.min(999, state.ammoCounts.lightning + 1);
-    state.ammoCounts.meteor = Math.min(999, state.ammoCounts.meteor + 1);
     state.projectiles = [];
     state.score += state.wave * 350;
     state.resources += 12 + Math.min(20, state.wave * 2);

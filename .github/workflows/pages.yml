@@ -1,4 +1,4 @@
-name: Build and deploy Hyorin's Pixel Adventure
+name: Build and deploy Hyorin Farm Defense 2
 
 on:
   push:

@@ -1,8 +1,8 @@
 {
-  "name": "hyorin-pixel-adventure",
+  "name": "hyorin-farm-defense-2",
   "version": "1.0.0",
   "private": true,
-  "description": "효린이의 픽셀 모험 — 네 단계로 성장하는 오프라인 횡스크롤 플랫폼 게임",
+  "description": "효린 농장 디펜스2 — 새총으로 농장을 지키는 횡스크롤 게임",
   "type": "module",
   "scripts": {
     "dev": "vite",

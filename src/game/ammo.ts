@@ -1,4 +1,4 @@
-import type { AmmoType } from './types';
+import type { AmmoType, GameState } from './types';
 
 export interface AmmoDefinition {
   type: AmmoType;
@@ -20,8 +20,47 @@ export const AMMO_DEFINITIONS: AmmoDefinition[] = [
   { type: 'meteor', name: '메테오탄', icon: '☄️', description: '넓은 충격파 피해', speed: 360, damage: 48, blastRadius: 164 },
 ];
 
+export const AMMO_CAPACITIES: Record<AmmoType, number> = {
+  bb: 30,
+  steelBb: 10,
+  stone: 3,
+  blast: 1,
+  lightning: 1,
+  meteor: 1,
+};
+
+export const AMMO_REFILL_COSTS: Record<AmmoType, number> = {
+  bb: 6,
+  steelBb: 8,
+  stone: 6,
+  blast: 8,
+  lightning: 8,
+  meteor: 10,
+};
+
 export function createAmmoCounts(): Record<AmmoType, number> {
-  return { bb: 999, steelBb: 80, stone: 80, blast: 10, lightning: 8, meteor: 4 };
+  return { ...AMMO_CAPACITIES };
+}
+
+export function normalizeAmmoCounts(counts?: Partial<Record<AmmoType, number>>): Record<AmmoType, number> {
+  const normalized = createAmmoCounts();
+  for (const ammo of AMMO_DEFINITIONS) {
+    const count = counts?.[ammo.type];
+    normalized[ammo.type] = Number.isFinite(count)
+      ? Math.min(AMMO_CAPACITIES[ammo.type], Math.max(0, Math.floor(count as number)))
+      : AMMO_CAPACITIES[ammo.type];
+  }
+  return normalized;
+}
+
+export function refillAmmo(state: Pick<GameState, 'resources' | 'ammoCounts' | 'ammo'>, type: AmmoType): boolean {
+  const capacity = AMMO_CAPACITIES[type];
+  const cost = AMMO_REFILL_COSTS[type];
+  if (state.ammoCounts[type] >= capacity || state.resources < cost) return false;
+  state.resources -= cost;
+  state.ammoCounts[type] = capacity;
+  state.ammo = type;
+  return true;
 }
 
 export function getAmmoDefinition(type: AmmoType): AmmoDefinition {

@@ -7,10 +7,10 @@ import { AudioKit } from './game/AudioKit';
 import { clearAutosave, clearRecords, getSettings, highestScore, loadAutosave, loadRecords, saveAutosave, saveRecord, setSettings } from './game/storage';
 import type { GameSettings } from './game/storage';
 import { BOULDER_UPGRADE_COST, UPGRADE_DEFINITIONS, upgradeCost } from './game/upgrades';
-import { AMMO_DEFINITIONS, isAmmoType } from './game/ammo';
+import { AMMO_CAPACITIES, AMMO_DEFINITIONS, AMMO_REFILL_COSTS, isAmmoType } from './game/ammo';
 import { PET_DEFINITIONS, isPetType } from './game/pets';
 import { requestLandscapeLock, shouldCollapseLandscapeAmmoPanel, shouldUseTouchLayout, toggleFullscreen } from './game/mobile-layout';
-import type { EngineEvent, GameState, PetType, UpgradeKey } from './game/types';
+import type { AmmoType, EngineEvent, GameState, PetType, UpgradeKey } from './game/types';
 
 type View = 'home' | 'game' | 'pause' | 'intermission' | 'gameover';
 
@@ -108,9 +108,9 @@ export class GameApp {
     return `
       <div class="app-shell">
         <header class="topbar">
-          <a class="brand-lockup" href="#home" aria-label="효린이의 픽셀 모험 메인">
+          <a class="brand-lockup" href="#home" aria-label="효린 농장 디펜스2 메인">
             <span class="brand-mark" aria-hidden="true">🌱</span>
-            <span><b>효린이의 픽셀 모험</b><small>HYORIN'S PIXEL ADVENTURE</small></span>
+            <span><b>효린 농장 디펜스2</b><small>HYORIN FARM DEFENSE 2</small></span>
           </a>
           <div class="top-actions">
             <button class="icon-button" data-action="toggle-sound" aria-label="효과음 켜기/끄기" title="소리 설정"><span id="sound-icon">🔊</span></button>
@@ -123,7 +123,7 @@ export class GameApp {
             <div class="home-art" aria-hidden="true"><div class="sun-stamp">오늘도<br>잘 자라라!</div><div class="sprout sprout-one">🌿</div><div class="sprout sprout-two">🍅</div></div>
             <div class="hero-copy">
               <p class="eyebrow"><span class="eyebrow-dot"></span> 네 단계로 자라는 픽셀 횡스크롤 모험</p>
-              <h1>효린이의<br><em>픽셀 모험</em></h1>
+              <h1>효린 농장<br><em>디펜스2</em></h1>
               <p class="hero-description">플랫폼을 뛰어넘고 새총으로 동물 친구들을 막아 주세요.<br>초코우유를 찾으며 농장 길 끝까지 달려가요!</p>
               <div class="home-buttons">
                 <button class="primary-button" data-action="new-game"><span>새 게임</span><span aria-hidden="true">→</span></button>
@@ -162,11 +162,11 @@ export class GameApp {
             </div>
             <div class="ammo-toolbar" role="group" aria-label="새총 탄환 선택">
               <span class="ammo-toolbar-title">새총</span>
-              ${AMMO_DEFINITIONS.map((ammo, index) => `<button class="ammo-button${index === 0 ? ' is-selected' : ''}" data-ammo="${ammo.type}" aria-pressed="${index === 0}"><span>${ammo.icon}</span><b>${ammo.name}</b><small>${ammo.description}</small><i id="ammo-count-${ammo.type}">999</i></button>`).join('')}
+              ${AMMO_DEFINITIONS.map((ammo, index) => `<button class="ammo-button${index === 0 ? ' is-selected' : ''}" data-ammo="${ammo.type}" aria-pressed="${index === 0}"><span>${ammo.icon}</span><b>${ammo.name}</b><small>${ammo.description}</small><i id="ammo-count-${ammo.type}">${AMMO_CAPACITIES[ammo.type]}/${AMMO_CAPACITIES[ammo.type]}</i></button>`).join('')}
               <span class="secondary-attacks"><b>큰 돌</b> 근접 그로기 <span>·</span> <b>바위 강타</b> <span id="boulder-status">정비 시간에 포인트로 구매</span></span>
             </div>
             <div class="game-stage">
-              <div id="phaser-container" class="phaser-container" aria-label="효린이의 픽셀 모험 게임 화면"></div>
+              <div id="phaser-container" class="phaser-container" aria-label="효린 농장 디펜스2 게임 화면"></div>
               <div class="stage-top-hud">
                 <div class="health-pill"><span>💚 효린</span><div class="health-track"><i id="player-health-bar"></i></div><b id="player-health-text">100 / 100</b></div>
                 <div class="growth-pill"><b id="player-stage-label">2단계 · 어린이 효린</b><span id="player-lives-label">❤️ 3</span></div>
@@ -185,20 +185,20 @@ export class GameApp {
               <button class="attack-pad" type="button" data-touch-attack aria-label="누르고 있으면 가장 가까운 적 공격"><span aria-hidden="true">🪨</span><b>공격 유지</b></button>
             </div>
             <div class="game-footer">
-              <div class="desktop-hint"><kbd>A</kbd>/<kbd>D</kbd> 또는 방향키 이동 · <kbd>Space</kbd> 점프 · <kbd>J</kbd>/<kbd>F</kbd> 새총 · 마우스 클릭 공격 · <kbd>ESC</kbd> 일시정지</div>
+              <div class="desktop-hint"><kbd>A</kbd>/<kbd>D</kbd> 또는 방향키 이동 · <kbd>Space</kbd> 점프 · 플랫폼에서 <kbd>S</kbd>/<kbd>↓</kbd>+<kbd>Space</kbd> 내려가기 · <kbd>J</kbd>/<kbd>F</kbd> 새총 · 마우스 클릭 공격 · <kbd>ESC</kbd> 일시정지</div>
               <div class="farm-status-line"><span id="wave-phase-label">동물 친구들을 막아 주세요!</span><span id="player-level-label">Lv.1 · 공격 속도 +0%</span><span id="pet-count-label">동료 0/3</span><span id="kills-label">처치 0</span></div>
             </div>
             <div class="pointer-guide" aria-label="모바일 게임 조작"><span class="portrait-touch-guide">화면 아래의 좌우·점프·공격 버튼을 함께 눌러 조작해요.</span><span class="landscape-touch-guide">좌우 이동과 점프·공격 버튼을 함께 눌러 플레이해요. 탄환은 위에서 골라요.</span></div>
           </section>
         </main>
-        <footer class="site-footer"><span>효린이의 픽셀 모험</span><span>이어서 하기 코드는 가진 사람만 복원할 수 있어요.</span></footer>
+        <footer class="site-footer"><span>효린 농장 디펜스2</span><span>이어서 하기 코드는 가진 사람만 복원할 수 있어요.</span></footer>
         <div id="modal-root" class="modal-root" hidden></div>
       </div>`;
   }
 
   private bindEvents(): void {
     this.root.addEventListener('click', (event) => {
-      const target = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-action], [data-upgrade], [data-copy], [data-ammo], [data-pet]') : null;
+      const target = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-action], [data-upgrade], [data-copy], [data-ammo], [data-ammo-refill], [data-pet]') : null;
       if (!target) return;
       const action = target.dataset.action;
       if (action) this.handleAction(action);
@@ -209,6 +209,7 @@ export class GameApp {
         this.scene.selectAmmo(target.dataset.ammo);
         if (this.root.classList.contains('compact-landscape')) this.setAmmoPanelOpen(false);
       }
+      if (target.dataset.ammoRefill && isAmmoType(target.dataset.ammoRefill)) this.buyAmmo(target.dataset.ammoRefill);
       if (target.dataset.pet && isPetType(target.dataset.pet)) this.buyPet(target.dataset.pet);
     });
     const touchDirections = this.root.querySelectorAll<HTMLButtonElement>('[data-touch]');
@@ -452,9 +453,9 @@ export class GameApp {
     this.setText('#player-lives-label', `❤️ ${state.player.lives}`);
     for (const ammo of AMMO_DEFINITIONS) {
       const count = state.ammoCounts[ammo.type];
-      this.setText(`#ammo-count-${ammo.type}`, String(count));
+      this.setText(`#ammo-count-${ammo.type}`, `${count}/${AMMO_CAPACITIES[ammo.type]}`);
       const button = this.root.querySelector<HTMLButtonElement>(`[data-ammo="${ammo.type}"]`);
-      if (button) button.disabled = count <= 0 && ammo.type !== 'bb';
+      if (button) button.disabled = count <= 0;
     }
     this.setText('#boulder-status', state.boulderUnlocked ? '구매 완료 · 자동 범위 기절' : '정비 시간에 포인트로 구매');
     this.setText('#pet-count-label', `동료 ${state.pets.length}/3`);
@@ -532,7 +533,7 @@ export class GameApp {
     const modal = this.modalRoot();
     modal.hidden = false;
     modal.innerHTML = `<section class="modal-card result-card" role="dialog" aria-modal="true" aria-labelledby="result-title">
-      <span class="modal-kicker">픽셀 모험 기록</span><h2 id="result-title">오늘도 수고했어요!</h2><p class="modal-copy">농장 길 끝까지 달려가느라 정말 수고했어요.</p>
+      <span class="modal-kicker">농장 디펜스2 기록</span><h2 id="result-title">오늘도 수고했어요!</h2><p class="modal-copy">농장 길 끝까지 달려가느라 정말 수고했어요.</p>
       <div class="result-score"><small>최종 점수</small><b>${state.score.toLocaleString()}</b><span>BEST ${highestScore().toLocaleString()}</span></div>
       <div class="result-stats"><div><small>도달 구간</small><b>${state.wave}</b></div><div><small>동물 친구 처치</small><b>${state.stats.kills}</b></div><div><small>성장 단계</small><b>${state.player.stage}단계</b></div><div><small>플레이 시간</small><b>${playTime(state.elapsed)}</b></div></div>
       <div class="modal-actions"><button class="primary-button" data-action="retry">다시 모험하기 <span>↻</span></button><button class="secondary-button" data-action="home">메인 메뉴</button><button class="text-button" data-action="export-full">마지막 상태 코드 만들기</button></div>
@@ -568,12 +569,24 @@ export class GameApp {
         <img src="${image}" alt="" /><span class="pet-card-copy"><b>${pet.name}</b><small>${pet.description}</small></span><strong>${owned ? '함께 지키는 중' : `🍅 ${pet.price} 포인트`}</strong>
       </button>`;
     }).join('');
+    const ammoShopCards = AMMO_DEFINITIONS.map((ammo) => {
+      const count = state.ammoCounts[ammo.type];
+      const capacity = AMMO_CAPACITIES[ammo.type];
+      const cost = AMMO_REFILL_COSTS[ammo.type];
+      const full = count >= capacity;
+      const disabled = full || state.resources < cost;
+      const description = full ? '탄창이 가득 찼어요.' : `${count}발 남음 · ${capacity}발까지 충전`;
+      return `<button class="upgrade-card ammo-refill-card" data-ammo-refill="${ammo.type}" ${disabled ? 'disabled' : ''}>
+        <span class="upgrade-icon">${ammo.icon}</span><span class="upgrade-copy"><b>${ammo.name}<small>${count}/${capacity}</small></b><small>${description}</small></span><span class="upgrade-price">${full ? '가득 참' : `🍅 ${cost}`}</span>
+      </button>`;
+    }).join('');
     const modal = this.modalRoot();
     modal.hidden = false;
     modal.innerHTML = `<section class="modal-card intermission-card" role="dialog" aria-modal="true" aria-labelledby="intermission-title">
       <div class="rest-stamp">쉼터</div><span class="modal-kicker">${state.wave}구간 통과</span><h2 id="intermission-title">잠깐 쉬어 가요</h2><p class="modal-copy">체력과 전투 상태가 회복됐어요. 다음 길에 나서기 전에 장비와 동료를 준비해요.</p>
       <div class="intermission-summary"><span>이번 구간 보상</span><b>+${12 + Math.min(20, state.wave * 2)} 🍅</b><span class="resource-total">보유 포인트 <strong>🍅 ${state.resources}</strong></span></div>
       <div class="upgrade-grid">${cards}${boulderButton}</div>
+      <div class="pet-shop ammo-shop"><div class="pet-shop-heading"><b>새총 탄약 충전</b><small>탄약을 쉼터에서 포인트로 다시 채워요.</small></div><div class="upgrade-grid ammo-shop-grid">${ammoShopCards}</div></div>
       <div class="pet-shop"><div class="pet-shop-heading"><b>모험 동료</b><small>함께 달리며 가까운 동물을 막아 줘요.</small></div><div class="pet-shop-grid">${petCards}</div></div>
       <div class="intermission-bottom"><button class="primary-button" data-action="continue-wave">다음 구간으로 <span>→</span></button></div>
       <button class="text-button" data-action="export-quick">이어하기 코드 만들기</button>
@@ -596,6 +609,10 @@ export class GameApp {
 
   private buyPet(type: PetType): void {
     if (this.currentView === 'intermission' && this.scene.purchasePet(type)) this.renderIntermission();
+  }
+
+  private buyAmmo(type: AmmoType): void {
+    if (this.currentView === 'intermission' && this.scene.purchaseAmmo(type)) this.renderIntermission();
   }
 
   private showPause(): void {
@@ -739,7 +756,7 @@ export class GameApp {
 
   private showInstructions(): void {
     this.modalReturn = this.currentView;
-    this.showModal(`<section class="modal-card instructions-card" role="dialog" aria-modal="true" aria-labelledby="instructions-title"><span class="modal-kicker">플레이 안내</span><h2 id="instructions-title">효린이의 픽셀 모험</h2><div class="instruction-list"><div><span>01</span><b>달리기·점프·새총</b><p>PC에서는 A/D 또는 방향키로 좌우 이동, Space 또는 위쪽 방향키로 점프, J/F나 마우스 클릭으로 공격해요. 점프는 땅이나 플랫폼에 착지한 뒤 다시 할 수 있어요. 동물 위에서 내려오면 밟아 물리칠 수도 있어요.</p></div><div><span>02</span><b>성장과 초코우유</b><p>2단계 어린이 효린으로 시작해요. 초코우유를 모으면 청소년, 성인으로 자라고, 맞으면 한 단계 어려져요. 아기 상태에서 다시 맞으면 목숨을 잃고 출발점에서 다시 시작해요.</p></div><div><span>03</span><b>여섯 종류 탄환</b><p>BB탄·강철 BB탄·돌멩이와 폭렬탄·번개탄·메테오탄을 골라 써요. 특수 탄환은 구간 통과 뒤 보충돼요. PC에서는 1~6 키로 선택할 수 있어요.</p></div><div><span>04</span><b>모바일·저장</b><p>스마트폰에서는 좌우·점프·공격을 동시에 누를 수 있어요. 일시정지에서 이어하기 코드를 만들 수 있고 진행은 이 브라우저에 자동 저장돼요.</p></div></div><div class="modal-actions"><button class="primary-button" data-action="close-modal">알겠어요</button></div></section>`);
+    this.showModal(`<section class="modal-card instructions-card" role="dialog" aria-modal="true" aria-labelledby="instructions-title"><span class="modal-kicker">플레이 안내</span><h2 id="instructions-title">효린 농장 디펜스2</h2><div class="instruction-list"><div><span>01</span><b>달리기·점프·새총</b><p>PC에서는 A/D 또는 방향키로 좌우 이동, Space 또는 위쪽 방향키로 점프, J/F나 마우스 클릭으로 공격해요. 아래 방향키 또는 S를 누른 채 Space를 누르면 플랫폼 아래로 내려갈 수 있어요. 동물 위에서 내려오면 밟아 물리칠 수도 있어요.</p></div><div><span>02</span><b>성장과 초코우유</b><p>2단계 어린이 효린으로 시작해요. 초코우유를 모으면 청소년, 성인으로 자라고, 맞으면 한 단계 어려져요. 아기 상태에서 다시 맞으면 목숨을 잃고 출발점에서 다시 시작해요.</p></div><div><span>03</span><b>여섯 종류 탄환</b><p>탄약은 BB탄 30발, 강철 BB탄 10발, 돌멩이 3발, 나머지 특수탄은 종류별 1발까지 가지고 시작해요. 탄약이 떨어지면 구간 사이 쉼터 상점에서 포인트를 써서 충전할 수 있어요. PC에서는 1~6 키로 선택할 수 있어요.</p></div><div><span>04</span><b>모바일·저장</b><p>스마트폰에서는 좌우·점프·공격을 동시에 누를 수 있어요. 일시정지에서 이어하기 코드를 만들 수 있고 진행은 이 브라우저에 자동 저장돼요.</p></div></div><div class="modal-actions"><button class="primary-button" data-action="close-modal">알겠어요</button></div></section>`);
     this.focusModal();
   }
 
