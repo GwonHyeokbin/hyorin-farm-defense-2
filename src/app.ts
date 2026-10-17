@@ -499,8 +499,12 @@ export class GameApp {
       case 'fire': case 'melee': case 'boulder': case 'level-up': case 'kill': case 'farm-hit': case 'player-hit': case 'wave-start': case 'wave-clear': case 'game-over':
         this.audio.play(event.type);
         break;
+      case 'dad-message':
+        this.audio.play('level-up');
+        break;
     }
     if (event.type === 'level-up') this.showToast(event.text ?? `레벨 ${state.level} 상승! 공격 속도 +1%`);
+    if (event.type === 'dad-message') this.showToast(`${event.text ?? '아빠의 응원'} · 레벨 ${state.level} 상승!`);
     if (event.type === 'milk' || event.type === 'life-lost') this.showToast(event.text ?? '효린이의 성장 단계가 바뀌었어요.');
     if (event.type === 'special-attack') this.audio.play('special-attack');
     if (event.type === 'milk' || event.type === 'jump' || event.type === 'life-lost') this.audio.play(event.type);

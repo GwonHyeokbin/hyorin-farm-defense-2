@@ -31,6 +31,15 @@ export interface MilkPickupState {
   y: number;
 }
 
+export interface DadMessagePickupState {
+  id: number;
+  x: number;
+  y: number;
+  velocityY: number;
+  life: number;
+  phraseIndex: number;
+}
+
 export interface EnemyState {
   id: number;
   kind: EnemyKind;
@@ -118,6 +127,9 @@ export interface GameState {
   ammoCounts: Record<AmmoType, number>;
   milkPickups: MilkPickupState[];
   nextMilkId: number;
+  dadMessagePickups: DadMessagePickupState[];
+  nextDadMessageId: number;
+  dadMessageSpawnTimer: number;
   boulderUnlocked: boolean;
   pets: FarmPetState[];
   player: PlayerState;
@@ -144,7 +156,7 @@ export interface Controls {
 }
 
 export interface EngineEvent {
-  type: 'fire' | 'hit' | 'melee' | 'boulder' | 'level-up' | 'knockback' | 'groggy' | 'stun' | 'kill' | 'farm-hit' | 'player-hit' | 'wave-start' | 'wave-clear' | 'game-over' | 'milk' | 'special-attack' | 'jump' | 'life-lost';
+  type: 'fire' | 'hit' | 'melee' | 'boulder' | 'level-up' | 'dad-message' | 'knockback' | 'groggy' | 'stun' | 'kill' | 'farm-hit' | 'player-hit' | 'wave-start' | 'wave-clear' | 'game-over' | 'milk' | 'special-attack' | 'jump' | 'life-lost';
   text?: string;
   x?: number;
   y?: number;

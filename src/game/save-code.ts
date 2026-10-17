@@ -2,7 +2,7 @@ import { zlibSync } from 'fflate';
 import type { GameState } from './types';
 import { isAmmoType, normalizeAmmoCounts } from './ammo';
 import { isPetType } from './pets';
-import { WORLD } from './engine';
+import { DAD_MESSAGE_TEXTS, WORLD } from './engine';
 
 const CODE_PREFIX = 'HPA1';
 const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
@@ -138,6 +138,17 @@ export function isValidGameState(value: unknown): value is GameState {
     }
   }
   if (value.nextMilkId !== undefined && (!finite(value.nextMilkId, 1, 10_000_000) || !Number.isInteger(value.nextMilkId))) return false;
+  if (value.dadMessagePickups !== undefined) {
+    if (!Array.isArray(value.dadMessagePickups) || value.dadMessagePickups.length > 10) return false;
+    for (const pickup of value.dadMessagePickups) {
+      if (!isRecord(pickup) || !finite(pickup.id, 1, 10_000_000) || !Number.isInteger(pickup.id)
+        || !finite(pickup.x, 0, WORLD.width) || !finite(pickup.y, -1000, WORLD.height)
+        || !finite(pickup.velocityY, 0, 5000) || !finite(pickup.life, 0, 100)
+        || !finite(pickup.phraseIndex, 0, DAD_MESSAGE_TEXTS.length - 1) || !Number.isInteger(pickup.phraseIndex)) return false;
+    }
+  }
+  if (value.nextDadMessageId !== undefined && (!finite(value.nextDadMessageId, 1, 10_000_000) || !Number.isInteger(value.nextDadMessageId))) return false;
+  if (value.dadMessageSpawnTimer !== undefined && !finite(value.dadMessageSpawnTimer, 0, 1000)) return false;
   if (value.boulderUnlocked !== undefined && typeof value.boulderUnlocked !== 'boolean') return false;
   if (!isRecord(value.upgrades)) return false;
   for (const key of ['power', 'speed', 'rapid', 'armor', 'vitality', 'fence']) {
@@ -201,6 +212,11 @@ export function normalizeGameState(value: unknown): GameState | null {
     { id: 1, x: 270, y: 520 }, { id: 2, x: 762, y: 520 }, { id: 3, x: 515, y: 244 },
   ];
   state.nextMilkId = finite(state.nextMilkId, 1, 10_000_000) ? state.nextMilkId : Math.max(0, ...state.milkPickups.map((pickup) => pickup.id)) + 1;
+  state.dadMessagePickups = Array.isArray(state.dadMessagePickups) ? state.dadMessagePickups : [];
+  state.nextDadMessageId = finite(state.nextDadMessageId, 1, 10_000_000)
+    ? state.nextDadMessageId
+    : Math.max(0, ...state.dadMessagePickups.map((pickup) => pickup.id)) + 1;
+  state.dadMessageSpawnTimer = finite(state.dadMessageSpawnTimer, 0, 1000) ? state.dadMessageSpawnTimer : 8;
   state.boulderUnlocked = state.boulderUnlocked === true;
   state.pets = Array.isArray(state.pets) ? state.pets : [];
   state.player.meleeCooldown = finite(state.player.meleeCooldown, 0, 100) ? state.player.meleeCooldown : 0;

@@ -3,6 +3,15 @@ import { AMMO_DEFINITIONS, createAmmoCounts, getAmmoDefinition } from './ammo';
 import { getPetDefinition } from './pets';
 
 export const WORLD = { width: 3072, height: 640, groundY: 560 } as const;
+export const DAD_MESSAGE_TEXTS = [
+  '효린아 아무것도 안 해도 된다',
+  '아빠는 효린이가 건강하기만 하면 돼',
+  '효린아 아무리 힘들어도 자신을 버려선 안돼',
+  '효린아 포기하지 않으면 실패란 없다',
+  '잘 하지 않아도 돼',
+  '괜찮아 아빠한테 기대',
+  '고민있으면 아빠한테 말하렴',
+] as const;
 export const PLATFORM_SURFACES = [
   { x: 340, y: 460, width: 176 }, { x: 690, y: 390, width: 184 },
   { x: 1090, y: 475, width: 208 }, { x: 1485, y: 408, width: 194 },
@@ -52,6 +61,9 @@ export function createGameState(seed = Date.now() >>> 0): GameState {
     ammoCounts: createAmmoCounts(),
     milkPickups: structuredClone(STARTING_MILK),
     nextMilkId: STARTING_MILK.length + 1,
+    dadMessagePickups: [],
+    nextDadMessageId: 1,
+    dadMessageSpawnTimer: 8,
     boulderUnlocked: false,
     pets: [],
     player: { x: 120, y: WORLD.groundY, velocityY: 0, grounded: true, hp: 100, maxHp: 100, attackCooldown: 0, meleeCooldown: 0, boulderCooldown: 0, invulnerable: 0, facingX: 1, facingY: 0, stage: 2, lives: 3, jumpTimer: 0, jumpCooldown: 0 },
@@ -194,6 +206,55 @@ function increaseExperience(state: GameState, amount: number, events: EngineEven
     state.experienceToNext = state.level * 100;
     events.push({ type: 'level-up', text: `레벨 ${state.level}! 공격 속도 +1%` });
   }
+}
+
+function spawnDadMessage(state: GameState): void {
+  const x = PhaserMathClamp(state.player.x + (random(state) - 0.5) * 560, 140, WORLD.width - 140);
+  state.dadMessagePickups.push({
+    id: state.nextDadMessageId++,
+    x,
+    y: -52,
+    velocityY: 82 + random(state) * 22,
+    life: 20,
+    phraseIndex: Math.floor(random(state) * DAD_MESSAGE_TEXTS.length),
+  });
+}
+
+function updateDadMessages(state: GameState, dt: number, events: EngineEvent[]): void {
+  const remaining = [] as GameState['dadMessagePickups'];
+  const playerHalfHeight: Record<GrowthStage, number> = { 1: 24, 2: 32, 3: 36, 4: 40 };
+
+  for (const pickup of state.dadMessagePickups) {
+    pickup.life -= dt;
+    if (pickup.velocityY > 0) {
+      const previousY = pickup.y;
+      const nextY = pickup.y + pickup.velocityY * dt;
+      const landing = PLATFORM_SURFACES
+        .filter((platform) => pickup.x >= platform.x && pickup.x <= platform.x + platform.width
+          && previousY < platform.y - 38 && nextY >= platform.y - 38)
+        .sort((a, b) => a.y - b.y)[0];
+      const groundY = WORLD.groundY - 38;
+      if (landing) {
+        pickup.y = landing.y - 38;
+        pickup.velocityY = 0;
+      } else if (nextY >= groundY) {
+        pickup.y = groundY;
+        pickup.velocityY = 0;
+      } else pickup.y = nextY;
+    }
+
+    const playerCenterY = state.player.y - playerHalfHeight[state.player.stage];
+    const touchesMessage = Math.abs(pickup.x - state.player.x) <= 158
+      && Math.abs(pickup.y - playerCenterY) <= 74;
+    if (touchesMessage) {
+      state.level += 1;
+      state.experienceToNext = state.level * 100;
+      events.push({ type: 'dad-message', text: DAD_MESSAGE_TEXTS[pickup.phraseIndex] });
+      continue;
+    }
+    if (pickup.life > 0) remaining.push(pickup);
+  }
+  state.dadMessagePickups = remaining;
 }
 
 function damageEnemy(state: GameState, enemy: EnemyState, amount: number, events: EngineEvent[]): void {
@@ -417,6 +478,11 @@ export function stepWorld(state: GameState, rawDt: number, controls: Controls = 
   if (dt === 0 || state.farm.health <= 0 || state.player.hp <= 0) return [];
   const events: EngineEvent[] = [];
   state.elapsed += dt;
+  state.dadMessageSpawnTimer = Math.max(0, state.dadMessageSpawnTimer - dt);
+  if (state.dadMessageSpawnTimer <= 0) {
+    if (state.dadMessagePickups.length < 2) spawnDadMessage(state);
+    state.dadMessageSpawnTimer = 14 + random(state) * 8;
+  }
   state.player.invulnerable = Math.max(0, state.player.invulnerable - dt);
   state.player.jumpTimer = Math.max(0, state.player.jumpTimer - dt);
   state.player.jumpCooldown = Math.max(0, state.player.jumpCooldown - dt);
@@ -467,6 +533,7 @@ export function stepWorld(state: GameState, rawDt: number, controls: Controls = 
     state.player.jumpTimer = 0;
   }
   collectMilk(state, events);
+  updateDadMessages(state, dt, events);
   const nearestEnemy = getNearestEnemy(state, state.player.x, state.player.y);
   if (nearestEnemy && nearestEnemy.distance <= 900) {
     const aimX = nearestEnemy.enemy.x - state.player.x;

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { createGameState, PLATFORM_SURFACES, stepWorld, WORLD } from './engine';
+import { createGameState, DAD_MESSAGE_TEXTS, PLATFORM_SURFACES, stepWorld, WORLD } from './engine';
 import { normalizeAmmoCounts, refillAmmo } from './ammo';
 import { applyUpgrade, repairFarm, unlockBoulder } from './upgrades';
 import type { AmmoType, Controls, EngineEvent, GameState, PetType } from './types';
@@ -33,6 +33,7 @@ export class FarmScene extends Phaser.Scene {
   private stoneSprite?: Phaser.GameObjects.Image;
   private readonly enemySprites = new Map<number, Phaser.GameObjects.Image>();
   private readonly milkSprites = new Map<number, Phaser.GameObjects.Image>();
+  private readonly dadMessageSprites = new Map<number, Phaser.GameObjects.Container>();
   private readonly enemyStatusSprites = new Map<number, Phaser.GameObjects.Text>();
   private readonly petSprites = new Map<PetType, Phaser.GameObjects.Image>();
   private readonly previousPetPositions = new Map<PetType, { x: number; y: number }>();
@@ -333,6 +334,8 @@ export class FarmScene extends Phaser.Scene {
     this.enemyStatusSprites.clear();
     for (const sprite of this.milkSprites.values()) sprite.destroy();
     this.milkSprites.clear();
+    for (const sprite of this.dadMessageSprites.values()) sprite.destroy();
+    this.dadMessageSprites.clear();
     for (const sprite of this.petSprites.values()) sprite.destroy();
     this.petSprites.clear();
     this.previousPetPositions.clear();
@@ -416,6 +419,37 @@ export class FarmScene extends Phaser.Scene {
       }
       const pulse = 1 + Math.sin(time * 5 + index) * 0.08;
       sprite.setPosition(pickup.x, pickup.y - 4 + Math.sin(time * 3 + index) * 2).setScale(pulse).setDepth(pickup.y + 2);
+    });
+
+    const messageIds = new Set(state.dadMessagePickups.map((pickup) => pickup.id));
+    for (const [id, container] of this.dadMessageSprites) {
+      if (!messageIds.has(id)) {
+        container.destroy(true);
+        this.dadMessageSprites.delete(id);
+      }
+    }
+    state.dadMessagePickups.forEach((pickup) => {
+      let container = this.dadMessageSprites.get(pickup.id);
+      if (!container) {
+        container = this.add.container(pickup.x, pickup.y);
+        const paper = this.add.graphics();
+        paper.fillStyle(0x493b27, 0.2).fillRoundedRect(-132, -35, 264, 74, 15);
+        paper.fillStyle(0xfff5d7, 0.98).fillRoundedRect(-132, -39, 264, 74, 15);
+        paper.lineStyle(2, 0xd9a55d, 0.95).strokeRoundedRect(-132, -39, 264, 74, 15);
+        paper.fillStyle(0xffffff, 0.66).fillRoundedRect(-124, -32, 248, 60, 11);
+        const title = this.add.text(0, -23, '아빠의 응원', {
+          fontFamily: 'sans-serif', fontSize: '11px', fontStyle: 'bold', color: '#a36337', align: 'center',
+        }).setOrigin(0.5);
+        const phrase = this.add.text(0, 4, DAD_MESSAGE_TEXTS[pickup.phraseIndex] ?? DAD_MESSAGE_TEXTS[0], {
+          fontFamily: 'Malgun Gothic, sans-serif', fontSize: '14px', fontStyle: 'bold', color: '#514735',
+          align: 'center', lineSpacing: 1, wordWrap: { width: 230, useAdvancedWrap: true },
+        }).setOrigin(0.5);
+        container.add([paper, title, phrase]).setDepth(pickup.y + 120);
+        this.dadMessageSprites.set(pickup.id, container);
+      }
+      const flutter = pickup.velocityY > 0 ? Math.sin(time * 5 + pickup.id) * 0.035 : 0;
+      const blinking = pickup.life < 2 && Math.floor(time * 8) % 2 === 0;
+      container.setPosition(pickup.x, pickup.y).setRotation(flutter).setAlpha(blinking ? 0.45 : 1).setDepth(pickup.y + 120);
     });
 
     const aliveIds = new Set(state.enemies.map((enemy) => enemy.id));
