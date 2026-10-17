@@ -517,6 +517,13 @@ export function stepWorld(state: GameState, rawDt: number, controls: Controls = 
     state.player.jumpTimer = 0;
     state.player.jumpCooldown = 0.18;
     events.push({ type: 'jump' });
+  } else if (state.player.grounded && state.player.y < WORLD.groundY) {
+    const hasPlatformSupport = PLATFORM_SURFACES.some((platform) => Math.abs(platform.y - state.player.y) <= 0.5
+      && state.player.x + 15 >= platform.x && state.player.x - 15 <= platform.x + platform.width);
+    if (!hasPlatformSupport) {
+      state.player.grounded = false;
+      state.player.velocityY = 0;
+    }
   }
   if (!state.player.grounded) {
     state.player.jumpTimer = Math.min(2, state.player.jumpTimer + dt);
