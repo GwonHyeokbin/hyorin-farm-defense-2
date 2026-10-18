@@ -179,7 +179,7 @@ export class GameApp {
                 <div class="health-pill farm-health-pill"><span>🌾 여정</span><div class="health-track"><i id="farm-health-bar"></i></div><b id="farm-health-text">0%</b></div>
               </div>
               <div class="wave-banner" id="wave-banner" aria-live="polite"></div>
-              <div class="boss-health" id="boss-health" hidden><span>👑 왕멧돼지</span><div class="health-track"><i id="boss-health-bar"></i></div></div>
+              <div class="boss-health" id="boss-health" hidden><span id="boss-health-name">🐯 호랑이</span><div class="health-track"><i id="boss-health-bar"></i></div></div>
               <div class="game-overwash" id="game-overwash" hidden></div>
             </div>
             <div class="mobile-controls" aria-label="모바일 게임 조작">
@@ -487,10 +487,14 @@ export class GameApp {
     this.setText('#farm-health-text', `${Math.floor(journeyRatio)}%`);
     this.setText('#kills-label', `처치 ${state.stats.kills}`);
     this.setText('#wave-phase-label', state.waveState.phase === 'rest' ? `쉼터 · 다음 구간 준비` : `동물 친구들을 막아 주세요! · ${state.waveState.spawned}/${state.waveState.total}`);
-    const boss = state.enemies.find((enemy) => enemy.kind === 'kingBoar');
+    const boss = state.enemies.find((enemy) => enemy.kind === 'tiger' && state.wave % 5 === 0)
+      ?? state.enemies.find((enemy) => enemy.kind === 'kingBoar');
     const bossBox = this.root.querySelector<HTMLElement>('#boss-health');
     if (bossBox) bossBox.hidden = !boss;
-    if (boss) this.setStyle('#boss-health-bar', 'width', `${Math.max(0, boss.hp / boss.maxHp * 100)}%`);
+    if (boss) {
+      this.setText('#boss-health-name', boss.kind === 'tiger' ? '🐯 호랑이' : '👑 왕멧돼지');
+      this.setStyle('#boss-health-bar', 'width', `${Math.max(0, boss.hp / boss.maxHp * 100)}%`);
+    }
   }
 
   private setText(selector: string, value: string): void {
@@ -797,7 +801,7 @@ export class GameApp {
 
   private showInstructions(): void {
     this.modalReturn = this.currentView;
-    this.showModal(`<section class="modal-card instructions-card" role="dialog" aria-modal="true" aria-labelledby="instructions-title"><span class="modal-kicker">플레이 안내</span><h2 id="instructions-title">효린 농장 디펜스2</h2><div class="instruction-list"><div><span>01</span><b>달리기·점프·무기</b><p>PC에서는 A/D 또는 방향키로 이동, Space 또는 위쪽 방향키로 점프, J/F나 마우스 클릭으로 공격해요. 아래 방향키 또는 S를 누른 채 Space를 누르면 플랫폼 아래로 내려갈 수 있어요. 공격은 현재 바라보는 방향으로 나가요. 동물 위에서 내려오면 밟아 물리칠 수도 있어요.</p></div><div><span>02</span><b>성장과 초코우유</b><p>2단계 어린이 효린으로 시작해요. 초코우유를 모으면 청소년, 성인으로 자라고, 맞으면 한 단계 어려져요. 아기 상태에서 다시 맞으면 목숨을 잃고 출발점에서 다시 시작해요. 레벨이 오르면 이동 속도와 점프 높이가 각각 1%씩 올라요.</p></div><div><span>03</span><b>다섯 무기와 탄약</b><p>새총·활·크로스보우·권총·자동소총을 쉼터에서 구매하고 함께 가질 수 있어요. 각각 BB탄 30발, 화살 12개, 볼트 화살 12개, 권총 탄약 12발, 소총 탄약 30발씩 충전해요. 탄약이 떨어지면 다른 무기로 자동 전환되고, 쉼터 상점에서 다시 구매할 수 있어요. PC에서는 1~5 키로 무기를 선택해요.</p></div><div><span>04</span><b>고양이와 계절</b><p>곰·호랑이·늑대도 출현해요. 고양이는 몬스터에게 다치거나 썩은 수박에 닿으면 체력이 줄거나 한 구간 동안 기절할 수 있어요. 가짜뉴스 종이는 다른 고양이를 한 번 공격하게 해요. 쉼터에서 츄르를 사서 체력을 회복시키고 계절은 세 구간마다 바뀌어요.</p></div><div><span>05</span><b>모바일·저장</b><p>스마트폰에서는 좌우·점프·공격을 동시에 누를 수 있어요. 일시정지에서 이어하기 코드를 만들 수 있고 진행은 이 브라우저에 자동 저장돼요.</p></div></div><div class="modal-actions"><button class="primary-button" data-action="close-modal">알겠어요</button></div></section>`);
+    this.showModal(`<section class="modal-card instructions-card" role="dialog" aria-modal="true" aria-labelledby="instructions-title"><span class="modal-kicker">플레이 안내</span><h2 id="instructions-title">효린 농장 디펜스2</h2><div class="instruction-list"><div><span>01</span><b>달리기·점프·무기</b><p>PC에서는 A/D 또는 방향키로 이동, Space 또는 위쪽 방향키로 점프, J/F나 마우스 클릭으로 공격해요. 아래 방향키 또는 S를 누른 채 Space를 누르면 플랫폼 아래로 내려갈 수 있어요. 공격은 현재 바라보는 방향으로 나가요. 동물 위에서 내려오면 밟아 물리칠 수도 있어요.</p></div><div><span>02</span><b>성장과 초코우유</b><p>2단계 어린이 효린으로 시작해요. 초코우유를 모으면 청소년, 성인으로 자라고, 맞으면 한 단계 어려져요. 아기 상태에서 다시 맞으면 목숨을 잃고 출발점에서 다시 시작해요. 레벨이 오르면 이동 속도와 점프 높이가 각각 1%씩 올라요.</p></div><div><span>03</span><b>다섯 무기와 탄약</b><p>새총·활·크로스보우·권총·자동소총을 쉼터에서 구매하고 함께 가질 수 있어요. 각각 BB탄 30발, 화살 12개, 볼트 화살 12개, 권총 탄약 12발, 소총 탄약 30발씩 충전해요. 탄약이 떨어지면 다른 무기로 자동 전환되고, 쉼터 상점에서 다시 구매할 수 있어요. PC에서는 1~5 키로 무기를 선택해요.</p></div><div><span>04</span><b>고양이와 계절</b><p>두더지·토끼·까마귀·멧돼지·곰·늑대와 호랑이가 출현해요. 호랑이는 가장 강하며 다섯 구간마다 마지막에 나타나요. 고양이는 몬스터에게 다치거나 썩은 수박에 닿으면 체력이 줄거나 한 구간 동안 기절할 수 있어요. 가짜뉴스 종이는 다른 고양이를 한 번 공격하게 해요. 쉼터에서 츄르를 사서 체력을 회복시키고 계절은 세 구간마다 바뀌어요.</p></div><div><span>05</span><b>모바일·저장</b><p>스마트폰에서는 좌우·점프·공격을 동시에 누를 수 있어요. 일시정지에서 이어하기 코드를 만들 수 있고 진행은 이 브라우저에 자동 저장돼요.</p></div></div><div class="modal-actions"><button class="primary-button" data-action="close-modal">알겠어요</button></div></section>`);
     this.focusModal();
   }
 

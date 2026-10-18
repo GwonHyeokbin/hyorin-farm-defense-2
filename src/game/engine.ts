@@ -15,6 +15,16 @@ export const DAD_MESSAGE_TEXTS = [
 ] as const;
 export const LEVEL_100_MESSAGE = '행복한 가정에서 환생하여 하고 싶은 것을 모두 하고 살아갑니다.';
 export const SEASONS = ['봄', '여름', '가을', '겨울'] as const;
+export const ENEMY_NAMES: Record<EnemyKind, string> = {
+  mole: '두더지',
+  rabbit: '토끼',
+  crow: '까마귀',
+  boar: '멧돼지',
+  bear: '곰',
+  tiger: '호랑이',
+  wolf: '늑대',
+  kingBoar: '왕멧돼지',
+};
 export type SeasonName = (typeof SEASONS)[number];
 export function seasonForWave(wave: number): SeasonName {
   return SEASONS[Math.floor(Math.max(0, wave - 1) / 3) % SEASONS.length];
@@ -50,7 +60,7 @@ const ENEMY_INFO: Record<EnemyKind, { hp: number; speed: number; damage: number;
   crow: { hp: 18, speed: 64, damage: 4, score: 110, resource: 2, experience: 14 },
   boar: { hp: 58, speed: 40, damage: 8, score: 250, resource: 5, experience: 32 },
   bear: { hp: 106, speed: 27, damage: 12, score: 420, resource: 9, experience: 48 },
-  tiger: { hp: 62, speed: 73, damage: 10, score: 390, resource: 8, experience: 42 },
+  tiger: { hp: 620, speed: 86, damage: 24, score: 2200, resource: 30, experience: 180 },
   wolf: { hp: 42, speed: 78, damage: 7, score: 275, resource: 6, experience: 31 },
   kingBoar: { hp: 260, speed: 47, damage: 14, score: 1600, resource: 25, experience: 120 },
 };
@@ -140,14 +150,14 @@ function chooseTarget(state: GameState, kind: EnemyKind): number {
 function spawnEnemy(state: GameState): void {
   const choice = random(state);
   let kind: EnemyKind;
-  if (state.wave % 5 === 0 && state.waveState.spawned === state.waveState.total - 1) kind = 'kingBoar';
+  if (state.wave % 5 === 0 && state.waveState.spawned === state.waveState.total - 1) kind = 'tiger';
   else if (state.wave < 2) kind = choice < 0.55 ? 'mole' : 'rabbit';
   else if (choice < 0.17) kind = 'mole';
   else if (choice < 0.34) kind = 'rabbit';
   else if (choice < 0.49) kind = 'crow';
   else if (choice < 0.63) kind = 'wolf';
   else if (choice < 0.76) kind = 'boar';
-  else if (choice < 0.86) kind = 'tiger';
+  else if (choice < 0.86 && state.wave % 5 !== 0) kind = 'tiger';
   else kind = 'bear';
 
   const fromLeft = random(state) < 0.5;
@@ -167,7 +177,7 @@ function spawnEnemy(state: GameState): void {
     targetIndex,
     mood: kind === 'mole' ? 'burrow' : kind === 'crow' ? 'dive' : 'seek',
     moodTimer: kind === 'mole' ? 1.1 : kind === 'crow' ? 1.5 : ['boar', 'bear', 'tiger'].includes(kind) ? 2.2 : 0,
-    attackCooldown: 1.2,
+    attackCooldown: kind === 'tiger' ? 0.9 : 1.2,
     contactCooldown: 0,
     hitFlash: 0,
     status: null,
@@ -393,7 +403,7 @@ function updateEnemy(state: GameState, enemy: EnemyState, dt: number, events: En
       enemy.mood = enemy.mood === 'charge' ? 'seek' : 'charge';
       enemy.moodTimer = enemy.mood === 'charge' ? (enemy.kind === 'tiger' ? 0.65 : 1.05) : (enemy.kind === 'tiger' ? 2.0 : 2.8);
     }
-    if (enemy.mood === 'charge') speed *= enemy.kind === 'kingBoar' ? 3.2 : enemy.kind === 'tiger' ? 2.6 : enemy.kind === 'bear' ? 1.9 : 2.3;
+    if (enemy.mood === 'charge') speed *= enemy.kind === 'tiger' ? 3.8 : enemy.kind === 'kingBoar' ? 3.2 : enemy.kind === 'bear' ? 1.9 : 2.3;
   }
   if (enemy.kind === 'wolf' && state.enemies.some((ally) => ally.id !== enemy.id && ally.kind === 'wolf' && ally.hp > 0 && Math.abs(ally.x - enemy.x) < 150)) speed *= 1.14;
 
@@ -406,12 +416,12 @@ function updateEnemy(state: GameState, enemy: EnemyState, dt: number, events: En
     enemy.x = PhaserMathClamp(enemy.x + direction * speed * dt, -24, WORLD.width + 24);
     if (enemy.kind === 'crow') enemy.y = PhaserMathClamp(enemy.y + dy / distance * speed * dt, 230, WORLD.groundY - 30);
     else enemy.y = WORLD.groundY - 20;
-  } else if (enemy.attackCooldown <= 0) enemy.attackCooldown = enemy.kind === 'kingBoar' ? 1.15 : 1.4;
+  } else if (enemy.attackCooldown <= 0) enemy.attackCooldown = enemy.kind === 'tiger' ? 0.9 : enemy.kind === 'kingBoar' ? 1.15 : 1.4;
 
   const playerTop = state.player.y - PLAYER_STAGE_HEIGHTS[state.player.stage];
-  const enemyTop = enemy.y - (enemy.kind === 'kingBoar' || enemy.kind === 'bear' ? 42 : enemy.kind === 'tiger' ? 34 : 22);
+  const enemyTop = enemy.y - (enemy.kind === 'tiger' ? 52 : enemy.kind === 'kingBoar' || enemy.kind === 'bear' ? 42 : 22);
   const enemyBottom = enemy.y + 10;
-  const horizontalOverlap = Math.abs(state.player.x - enemy.x) < (enemy.kind === 'kingBoar' || enemy.kind === 'bear' ? 42 : enemy.kind === 'tiger' ? 36 : 30);
+  const horizontalOverlap = Math.abs(state.player.x - enemy.x) < (enemy.kind === 'tiger' ? 48 : enemy.kind === 'kingBoar' || enemy.kind === 'bear' ? 42 : 30);
   const verticalOverlap = playerTop < enemyBottom && state.player.y > enemyTop;
   if (enemy.hp > 0 && horizontalOverlap && verticalOverlap) {
     if (previousPlayerY <= enemyTop && state.player.y >= enemyTop && state.player.velocityY > 0) {
@@ -595,7 +605,7 @@ function updateHazards(state: GameState, dt: number, events: EngineEvent[]): voi
       if (pet.hp <= 0 || pet.stunnedUntilWave > state.wave || pet.damageCooldown > 0) continue;
       if (Math.hypot(enemy.x - pet.x, enemy.y - pet.y) > (enemy.kind === 'bear' ? 48 : 36)) continue;
       pet.damageCooldown = 1.3;
-      damagePet(pet, Math.max(4, ENEMY_INFO[enemy.kind].damage), events, `${pet.type}가 ${enemy.kind} 몬스터에게 공격받았어요.`);
+      damagePet(pet, Math.max(4, ENEMY_INFO[enemy.kind].damage), events, `${pet.type}가 ${ENEMY_NAMES[enemy.kind]}에게 공격받았어요.`);
     }
   }
 }
@@ -727,7 +737,7 @@ export function stepWorld(state: GameState, rawDt: number, controls: Controls = 
     for (const enemy of state.enemies) {
       if (enemy.hp <= 0) continue;
       if (projectile.ammo === 'crossbow' && projectile.hitEnemyIds?.includes(enemy.id)) continue;
-      if (Math.hypot(enemy.x - projectile.x, enemy.y - projectile.y) > (enemy.kind === 'kingBoar' ? 29 : 21)) continue;
+      if (Math.hypot(enemy.x - projectile.x, enemy.y - projectile.y) > (enemy.kind === 'tiger' ? 34 : enemy.kind === 'kingBoar' ? 29 : 21)) continue;
       if (projectile.ammo === 'stone') {
         const awayX = enemy.x - projectile.x;
         const awayY = enemy.y - projectile.y;

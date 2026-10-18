@@ -600,7 +600,7 @@ export class FarmScene extends Phaser.Scene {
       sprite.setPosition(enemy.x, enemy.y + bob);
       sprite.setDepth(enemy.y + 12);
       sprite.setAlpha(enemy.kind === 'mole' && enemy.mood === 'burrow' ? 0.12 : 1);
-      sprite.setScale(enemy.kind === 'kingBoar' ? 0.85 : enemy.kind === 'bear' ? 0.75 : enemy.kind === 'tiger' ? 0.64 : enemy.kind === 'wolf' ? 0.58 : enemy.kind === 'boar' ? 0.61 : 0.55);
+      sprite.setScale(enemy.kind === 'tiger' ? 1.1 : enemy.kind === 'kingBoar' ? 0.85 : enemy.kind === 'bear' ? 0.75 : enemy.kind === 'wolf' ? 0.58 : enemy.kind === 'boar' ? 0.61 : 0.55);
       if (enemy.hitFlash > 0) sprite.setTint(0xffeee0);
       else sprite.clearTint();
       sprite.setRotation(enemy.kind === 'crow' ? Math.sin(time * 4 + enemy.id) * 0.05 : 0);
@@ -649,11 +649,11 @@ export class FarmScene extends Phaser.Scene {
     }
     graphics.clear();
     for (const enemy of state.enemies) {
-      const boss = enemy.kind === 'kingBoar';
-      const width = boss ? 62 : 36;
+      const boss = enemy.kind === 'kingBoar' || (enemy.kind === 'tiger' && state.wave % 5 === 0 && state.waveState.spawned === state.waveState.total);
+      const width = boss ? enemy.kind === 'tiger' ? 78 : 62 : 36;
       const ratio = Math.max(0, enemy.hp / enemy.maxHp);
       const x = enemy.x - width / 2;
-      const y = enemy.y - (boss ? 58 : 39);
+      const y = enemy.y - (boss ? enemy.kind === 'tiger' ? 70 : 58 : 39);
       graphics.fillStyle(0x26362c, 0.76).fillRoundedRect(x - 1, y - 1, width + 2, 6, 3);
       graphics.fillStyle(boss ? 0xe7674f : 0xf2cd73, 1).fillRoundedRect(x, y, width * ratio, 4, 2);
     }
