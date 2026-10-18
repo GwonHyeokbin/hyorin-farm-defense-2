@@ -1,7 +1,7 @@
 import type { Controls, EnemyKind, EnemyState, EngineEvent, GameState, GrowthStage, MilkPickupState } from './types';
 import { createAmmoCounts, getAmmoDefinition, getWeaponDefinition, isLegacyAmmoType, isWeaponType, WEAPON_DEFINITIONS } from './ammo';
 import { FAKE_NEWS_FRIENDLY_FIRE_DAMAGE, getPetDefinition, PET_MAX_HP } from './pets';
-import { levelGrowthMultiplier, retainedLevelSteps } from './progression';
+import { growthStageMobilityPenalty, levelGrowthMultiplier, retainedLevelSteps } from './progression';
 
 export const WORLD = { width: 3072, height: 640, groundY: 560 } as const;
 export const DAD_MESSAGE_TEXTS = [
@@ -629,7 +629,9 @@ export function stepWorld(state: GameState, rawDt: number, controls: Controls = 
   const vx = Number(Boolean(controls.right)) - Number(Boolean(controls.left));
   const levelBonus = levelGrowthMultiplier(state);
   const equippedWeapon = isWeaponType(state.ammo) ? getWeaponDefinition(state.ammo) : null;
-  const mobilityMultiplier = 1 - (equippedWeapon?.mobilityPenalty ?? 0);
+  const weaponMobilityMultiplier = 1 - (equippedWeapon?.mobilityPenalty ?? 0);
+  const stageMobilityMultiplier = 1 - growthStageMobilityPenalty(state.player.stage);
+  const mobilityMultiplier = weaponMobilityMultiplier * stageMobilityMultiplier;
   const moveSpeed = (220 + state.upgrades.speed * 15) * levelBonus * mobilityMultiplier;
   const previousX = state.player.x;
   const previousY = state.player.y;

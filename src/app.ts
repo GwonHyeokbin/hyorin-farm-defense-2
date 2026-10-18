@@ -8,7 +8,7 @@ import { clearAutosave, clearRecords, getSettings, highestScore, loadAutosave, l
 import type { GameSettings } from './game/storage';
 import { BOULDER_UPGRADE_COST, UPGRADE_DEFINITIONS, upgradeCost } from './game/upgrades';
 import { AMMO_CAPACITIES, isWeaponType, WEAPON_DEFINITIONS } from './game/ammo';
-import { retainedLevelSteps } from './game/progression';
+import { growthStageMobilityPenalty, retainedLevelSteps } from './game/progression';
 import { CHURU_HEAL, CHURU_PRICE, PET_DEFINITIONS, isPetType } from './game/pets';
 import { requestLandscapeLock, shouldCollapseLandscapeAmmoPanel, shouldUseTouchLayout, toggleFullscreen } from './game/mobile-layout';
 import type { EngineEvent, GameState, PetType, UpgradeKey, WeaponType } from './game/types';
@@ -460,7 +460,8 @@ export class GameApp {
     const mobilityPenalty = equippedWeapon ? Math.round(equippedWeapon.mobilityPenalty * 100) : 0;
     this.setText('#player-level-label', `Lv.${state.level} · 이동/점프/고양이 능력 +${growthPercent}%${mobilityPenalty ? ` · ${equippedWeapon?.name} 이동/점프 -${mobilityPenalty}%` : ''} · EXP ${state.experience}/${state.experienceToNext}`);
     const stageName = ['', '아기 효린', '어린이 효린', '청소년 효린', '성인 효린'][state.player.stage];
-    this.setText('#player-stage-label', `${state.player.stage}단계 · ${stageName}`);
+    const stageMobilityPenalty = Math.round(growthStageMobilityPenalty(state.player.stage) * 100);
+    this.setText('#player-stage-label', `${state.player.stage}단계 · ${stageName} · 이동/점프 -${stageMobilityPenalty}%`);
     this.setText('#player-lives-label', `❤️ ${state.player.lives}`);
     for (const weapon of WEAPON_DEFINITIONS) {
       const count = state.ammoCounts[weapon.type];
