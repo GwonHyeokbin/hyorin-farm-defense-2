@@ -47,6 +47,7 @@ describe('platform movement and growth', () => {
     const state = createGameState(5);
     state.waveState.phaseTimer = 100;
     state.milkPickups = [];
+    state.level = 20;
     state.player.stage = 4;
     state.ammo = 'bb';
     state.player.x = PLATFORM_SURFACES[0].x + 50;
