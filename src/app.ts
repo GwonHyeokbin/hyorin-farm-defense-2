@@ -1,16 +1,16 @@
 import Phaser from 'phaser';
 import { FarmScene } from './game/FarmScene';
 import type { FarmSceneCallbacks } from './game/FarmScene';
-import { createGameState, LEVEL_100_MESSAGE, restoreSafeCheckpoint, WORLD } from './game/engine';
+import { createGameState, LEVEL_100_MESSAGE, restoreSafeCheckpoint, seasonForWave, WORLD } from './game/engine';
 import { createSaveCode, restoreSaveCode, SaveCodeError, isValidGameState } from './game/save-code';
 import { AudioKit } from './game/AudioKit';
 import { clearAutosave, clearRecords, getSettings, highestScore, loadAutosave, loadRecords, saveAutosave, saveRecord, setSettings } from './game/storage';
 import type { GameSettings } from './game/storage';
 import { BOULDER_UPGRADE_COST, UPGRADE_DEFINITIONS, upgradeCost } from './game/upgrades';
-import { AMMO_CAPACITIES, AMMO_DEFINITIONS, AMMO_REFILL_COSTS, isAmmoType } from './game/ammo';
-import { PET_DEFINITIONS, isPetType } from './game/pets';
+import { isWeaponType, WEAPON_DEFINITIONS } from './game/ammo';
+import { CHURU_HEAL, CHURU_PRICE, PET_DEFINITIONS, isPetType } from './game/pets';
 import { requestLandscapeLock, shouldCollapseLandscapeAmmoPanel, shouldUseTouchLayout, toggleFullscreen } from './game/mobile-layout';
-import type { AmmoType, EngineEvent, GameState, PetType, UpgradeKey } from './game/types';
+import type { EngineEvent, GameState, PetType, UpgradeKey, WeaponType } from './game/types';
 
 type View = 'home' | 'game' | 'pause' | 'intermission' | 'gameover';
 
@@ -129,7 +129,7 @@ export class GameApp {
             <div class="hero-copy">
               <p class="eyebrow"><span class="eyebrow-dot"></span> 네 단계로 자라는 픽셀 횡스크롤 모험</p>
               <h1>효린 농장<br><em>디펜스2</em></h1>
-              <p class="hero-description">플랫폼을 뛰어넘고 새총으로 동물 친구들을 막아 주세요.<br>초코우유를 찾으며 농장 길 끝까지 달려가요!</p>
+              <p class="hero-description">플랫폼을 뛰어넘고 여러 무기로 동물 친구들을 막아 주세요.<br>초코우유를 찾으며 농장 길 끝까지 달려가요!</p>
               <div class="home-buttons">
                 <button class="primary-button" data-action="new-game"><span>새 게임</span><span aria-hidden="true">→</span></button>
                 <button class="secondary-button" id="continue-button" data-action="continue" disabled>이어서 하기 <span class="continue-label">자동 저장 없음</span></button>
@@ -161,13 +161,13 @@ export class GameApp {
               <div class="game-screen-actions" aria-label="화면 설정">
                 <button class="screen-mode-button" data-action="rotate-screen" aria-label="가로 화면으로 전환" title="가로 화면으로 전환">↻</button>
                 <button class="screen-mode-button" data-action="toggle-fullscreen" aria-label="전체 화면" title="전체 화면">⛶</button>
-                <button class="screen-mode-button ammo-panel-toggle" data-action="toggle-ammo-panel" aria-label="탄환 선택 열기" aria-expanded="false" title="탄환 선택">🪨</button>
+                <button class="screen-mode-button ammo-panel-toggle" data-action="toggle-ammo-panel" aria-label="무기 선택 열기" aria-expanded="false" title="무기 선택">⚔️</button>
               </div>
               <button class="pause-button" data-action="pause" aria-label="일시정지">Ⅱ</button>
             </div>
-            <div class="ammo-toolbar" role="group" aria-label="새총 탄환 선택">
-              <span class="ammo-toolbar-title">새총</span>
-              ${AMMO_DEFINITIONS.map((ammo, index) => `<button class="ammo-button${index === 0 ? ' is-selected' : ''}" data-ammo="${ammo.type}" aria-pressed="${index === 0}"><span>${ammo.icon}</span><b>${ammo.name}</b><small>${ammo.description}</small><i id="ammo-count-${ammo.type}">${AMMO_CAPACITIES[ammo.type]}/${AMMO_CAPACITIES[ammo.type]}</i></button>`).join('')}
+            <div class="ammo-toolbar" role="group" aria-label="무기 선택">
+              <span class="ammo-toolbar-title">무기</span>
+              ${WEAPON_DEFINITIONS.map((weapon, index) => `<button class="ammo-button${index === 0 ? ' is-selected' : ''}" data-weapon="${weapon.type}" aria-pressed="${index === 0}"><span>${weapon.icon}</span><b>${weapon.name}</b><small>${weapon.description}</small><i id="weapon-count-${weapon.type}">${weapon.type === 'slingshot' ? '30발' : '미보유'}</i></button>`).join('')}
               <span class="secondary-attacks"><b>큰 돌</b> 근접 그로기 <span>·</span> <b>바위 강타</b> <span id="boulder-status">정비 시간에 포인트로 구매</span></span>
             </div>
             <div class="game-stage">
@@ -186,12 +186,12 @@ export class GameApp {
                 <button type="button" data-touch="left" aria-label="왼쪽으로 이동">◀</button>
                 <button type="button" data-touch="right" aria-label="오른쪽으로 이동">▶</button>
               </div>
+              <button class="attack-pad" type="button" data-touch-attack aria-label="바라보는 방향으로 공격"><span aria-hidden="true">⚔️</span><b>공격 유지</b></button>
               <button class="jump-pad" type="button" data-touch-jump aria-label="점프"><span aria-hidden="true">⬆</span><b>점프</b></button>
-              <button class="attack-pad" type="button" data-touch-attack aria-label="누르고 있으면 가장 가까운 적 공격"><span aria-hidden="true">🪨</span><b>공격 유지</b></button>
             </div>
             <div class="game-footer">
-              <div class="desktop-hint"><kbd>A</kbd>/<kbd>D</kbd> 또는 방향키 이동 · <kbd>Space</kbd> 점프 · 플랫폼에서 <kbd>S</kbd>/<kbd>↓</kbd>+<kbd>Space</kbd> 내려가기 · <kbd>J</kbd>/<kbd>F</kbd> 새총 · 마우스 클릭 공격 · <kbd>ESC</kbd> 일시정지</div>
-              <div class="farm-status-line"><span id="wave-phase-label">동물 친구들을 막아 주세요!</span><span id="player-level-label">Lv.1 · 공격 속도 +0%</span><span id="pet-count-label">동료 0/3</span><span id="kills-label">처치 0</span></div>
+              <div class="desktop-hint"><kbd>A</kbd>/<kbd>D</kbd> 또는 방향키 이동 · <kbd>Space</kbd> 점프 · 플랫폼에서 <kbd>S</kbd>/<kbd>↓</kbd>+<kbd>Space</kbd> 내려가기 · <kbd>1</kbd>~<kbd>5</kbd> 무기 선택 · <kbd>J</kbd>/<kbd>F</kbd> 공격 · 마우스 클릭 공격 · <kbd>ESC</kbd> 일시정지</div>
+              <div class="farm-status-line"><span id="wave-phase-label">동물 친구들을 막아 주세요!</span><span id="player-level-label">Lv.1 · 이동/점프 +0%</span><span id="pet-count-label">동료 0/3</span><span id="kills-label">처치 0</span></div>
             </div>
             <div class="pointer-guide" aria-label="모바일 게임 조작"><span class="portrait-touch-guide">화면 아래의 좌우·점프·공격 버튼을 함께 눌러 조작해요.</span><span class="landscape-touch-guide">좌우 이동과 점프·공격 버튼을 함께 눌러 플레이해요. 탄환은 위에서 골라요.</span></div>
           </section>
@@ -203,19 +203,21 @@ export class GameApp {
 
   private bindEvents(): void {
     this.root.addEventListener('click', (event) => {
-      const target = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-action], [data-upgrade], [data-copy], [data-ammo], [data-ammo-refill], [data-pet]') : null;
+      const target = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-action], [data-upgrade], [data-copy], [data-weapon], [data-buy-weapon], [data-weapon-refill], [data-pet], [data-feed-pet]') : null;
       if (!target) return;
       const action = target.dataset.action;
       if (action) this.handleAction(action);
       if (target.dataset.upgrade) this.buyUpgrade(target.dataset.upgrade as UpgradeKey);
       if (target.dataset.copy === 'all') void this.copyCode();
       if (target.dataset.copy === 'chunk') void this.copyChunk(Number(target.dataset.index));
-      if (target.dataset.ammo && isAmmoType(target.dataset.ammo) && this.currentView === 'game') {
-        this.scene.selectAmmo(target.dataset.ammo);
+      if (target.dataset.weapon && isWeaponType(target.dataset.weapon) && this.currentView === 'game') {
+        this.scene.selectAmmo(target.dataset.weapon);
         if (this.root.classList.contains('compact-landscape')) this.setAmmoPanelOpen(false);
       }
-      if (target.dataset.ammoRefill && isAmmoType(target.dataset.ammoRefill)) this.buyAmmo(target.dataset.ammoRefill);
+      if (target.dataset.weaponRefill && isWeaponType(target.dataset.weaponRefill)) this.buyAmmo(target.dataset.weaponRefill);
+      if (target.dataset.buyWeapon && isWeaponType(target.dataset.buyWeapon)) this.buyWeapon(target.dataset.buyWeapon);
       if (target.dataset.pet && isPetType(target.dataset.pet)) this.buyPet(target.dataset.pet);
+      if (target.dataset.feedPet && isPetType(target.dataset.feedPet)) this.feedPet(target.dataset.feedPet);
     });
     const touchDirections = this.root.querySelectorAll<HTMLButtonElement>('[data-touch]');
     touchDirections.forEach((button) => {
@@ -281,8 +283,8 @@ export class GameApp {
     });
     window.addEventListener('keydown', (event) => {
       if (this.currentView === 'game' && this.modalRoot().hidden && [' ', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) event.preventDefault();
-      if (this.currentView !== 'game' || !this.modalRoot().hidden || !/^[1-6]$/.test(event.key)) return;
-      const definition = AMMO_DEFINITIONS[Number(event.key) - 1];
+      if (this.currentView !== 'game' || !this.modalRoot().hidden || !/^[1-5]$/.test(event.key)) return;
+      const definition = WEAPON_DEFINITIONS[Number(event.key) - 1];
       if (definition) this.scene.selectAmmo(definition.type);
     });
     this.root.addEventListener('input', (event) => {
@@ -360,8 +362,8 @@ export class GameApp {
     if (!gameView || !button) return;
     const open = gameView.classList.contains('ammo-panel-open');
     button.setAttribute('aria-expanded', String(open));
-    button.setAttribute('aria-label', open ? '탄환 선택 닫기' : '탄환 선택 열기');
-    button.title = open ? '탄환 선택 닫기' : '탄환 선택 열기';
+    button.setAttribute('aria-label', open ? '무기 선택 닫기' : '무기 선택 열기');
+    button.title = open ? '무기 선택 닫기' : '무기 선택 열기';
   }
 
   private syncFullscreenButton(): void {
@@ -450,22 +452,25 @@ export class GameApp {
     this.activeState = state;
     this.setText('#hud-score', state.score.toLocaleString());
     this.setText('#hud-best', Math.max(highestScore(), state.score).toLocaleString());
-    this.setText('#hud-wave', state.wave === 0 ? '준비 중' : `구간 ${String(state.wave).padStart(2, '0')}`);
+    this.setText('#hud-wave', state.wave === 0 ? '봄 · 준비' : `${seasonForWave(state.wave)} · 구간 ${String(state.wave).padStart(2, '0')}`);
     this.setText('#hud-resources', `🍅 ${state.resources}`);
-    this.setText('#player-level-label', `Lv.${state.level} · 공격 속도 +${state.level - 1}% · EXP ${state.experience}/${state.experienceToNext}`);
+    this.setText('#player-level-label', `Lv.${state.level} · 이동/점프 +${state.level - 1}% · EXP ${state.experience}/${state.experienceToNext}`);
     const stageName = ['', '아기 효린', '어린이 효린', '청소년 효린', '성인 효린'][state.player.stage];
     this.setText('#player-stage-label', `${state.player.stage}단계 · ${stageName}`);
     this.setText('#player-lives-label', `❤️ ${state.player.lives}`);
-    for (const ammo of AMMO_DEFINITIONS) {
-      const count = state.ammoCounts[ammo.type];
-      this.setText(`#ammo-count-${ammo.type}`, `${count}/${AMMO_CAPACITIES[ammo.type]}`);
-      const button = this.root.querySelector<HTMLButtonElement>(`[data-ammo="${ammo.type}"]`);
-      if (button) button.disabled = count <= 0;
+    for (const weapon of WEAPON_DEFINITIONS) {
+      const count = state.ammoCounts[weapon.type];
+      const owned = state.ownedWeapons.includes(weapon.type);
+      this.setText(`#weapon-count-${weapon.type}`, owned ? `${count}발` : '미보유');
+      const button = this.root.querySelector<HTMLButtonElement>(`[data-weapon="${weapon.type}"]`);
+      if (button) button.disabled = !owned || count <= 0;
     }
     this.setText('#boulder-status', state.boulderUnlocked ? '구매 완료 · 자동 범위 기절' : '정비 시간에 포인트로 구매');
-    this.setText('#pet-count-label', `동료 ${state.pets.length}/3`);
-    this.root.querySelectorAll<HTMLButtonElement>('[data-ammo]').forEach((button) => {
-      const selected = button.dataset.ammo === state.ammo;
+    const petNames: Record<PetType, string> = { nuni: '누니', yangi: '양이', maru: '마루' };
+    const petHealth = state.pets.map((pet) => `${petNames[pet.type]} ${Math.ceil(pet.hp)}/${pet.maxHp}${pet.stunnedUntilWave > state.wave ? ' 기절' : ''}`).join(' · ');
+    this.setText('#pet-count-label', `동료 ${state.pets.length}/3${petHealth ? ` · ${petHealth}` : ''}`);
+    this.root.querySelectorAll<HTMLButtonElement>('[data-weapon]').forEach((button) => {
+      const selected = button.dataset.weapon === state.ammo;
       button.classList.toggle('is-selected', selected);
       button.setAttribute('aria-pressed', String(selected));
     });
@@ -508,7 +513,7 @@ export class GameApp {
         this.audio.play('level-up');
         break;
     }
-    if (event.type === 'level-up') this.showToast(event.text ?? `레벨 ${state.level} 상승! 공격 속도 +1%`);
+    if (event.type === 'level-up') this.showToast(event.text ?? `레벨 ${state.level} 상승! 이동 속도와 점프 높이 +1%`);
     if (event.type === 'dad-message') this.showToast(`${event.text ?? '아빠의 응원'} · 레벨 ${state.level} 상승!`);
     if (event.type === 'life-complete') this.showToast(event.text ?? LEVEL_100_MESSAGE, 10_000, true);
     if (event.type === 'milk' || event.type === 'life-lost') this.showToast(event.text ?? '효린이의 성장 단계가 바뀌었어요.');
@@ -516,6 +521,7 @@ export class GameApp {
     if (event.type === 'milk' || event.type === 'jump' || event.type === 'life-lost') this.audio.play(event.type);
     if (event.type === 'player-hit' && event.text) this.showToast(event.text);
     if (event.type === 'boulder') this.showToast('바위 강타! 주변 동물 친구들이 잠깐 멈췄어요.');
+    if (event.type === 'pet-damaged' || event.type === 'pet-stunned' || event.type === 'fake-news') this.showToast(event.text ?? '고양이 동료에게 일이 생겼어요.');
     if (event.type === 'wave-start') this.showToast(event.text ?? `${state.wave}구간 모험 시작!`);
     if (event.type === 'wave-clear') {
       this.audio.stopMusic();
@@ -572,22 +578,32 @@ export class GameApp {
       <span class="upgrade-icon">🪨</span><span class="upgrade-copy"><b>바위 강타 ${state.boulderUnlocked ? '<small>구매 완료</small>' : ''}</b><small>가까운 적 최대 4마리를 기절시켜요. 구매 후 자동으로 발동합니다.</small></span><span class="upgrade-price">${state.boulderUnlocked ? '보유 중' : `🍅 ${BOULDER_UPGRADE_COST} 포인트`}</span>
     </button>`;
     const petCards = PET_DEFINITIONS.map((pet) => {
-      const owned = state.pets.some((companion) => companion.type === pet.type);
-      const disabled = owned || state.resources < pet.price;
+      const companion = state.pets.find((item) => item.type === pet.type);
+      const disabled = state.resources < pet.price;
       const image = import.meta.env.BASE_URL + 'art/' + pet.image;
+      if (companion) {
+        const canFeed = companion.hp < companion.maxHp || companion.stunnedUntilWave > state.wave;
+        return `<div class="pet-card owned-pet-card">
+          <img src="${image}" alt="" /><span class="pet-card-copy"><b>${pet.name} · 체력 ${Math.ceil(companion.hp)}/${companion.maxHp}</b><small>${companion.stunnedUntilWave > state.wave ? '기절 중 · 츄르로 깨울 수 있어요.' : pet.description}</small></span>
+          <button class="feed-pet-button" data-feed-pet="${pet.type}" ${!canFeed || state.resources < CHURU_PRICE ? 'disabled' : ''}>츄르 🍅 ${CHURU_PRICE}</button>
+        </div>`;
+      }
       return `<button class="pet-card" data-pet="${pet.type}" ${disabled ? 'disabled' : ''} aria-label="${pet.name} 펫 구매">
-        <img src="${image}" alt="" /><span class="pet-card-copy"><b>${pet.name}</b><small>${pet.description}</small></span><strong>${owned ? '함께 지키는 중' : `🍅 ${pet.price} 포인트`}</strong>
+        <img src="${image}" alt="" /><span class="pet-card-copy"><b>${pet.name}</b><small>${pet.description}</small></span><strong>🍅 ${pet.price} 포인트</strong>
       </button>`;
     }).join('');
-    const ammoShopCards = AMMO_DEFINITIONS.map((ammo) => {
-      const count = state.ammoCounts[ammo.type];
-      const capacity = AMMO_CAPACITIES[ammo.type];
-      const cost = AMMO_REFILL_COSTS[ammo.type];
-      const full = count >= capacity;
-      const disabled = full || state.resources < cost;
-      const description = full ? '탄창이 가득 찼어요.' : `${count}발 남음 · ${capacity}발까지 충전`;
-      return `<button class="upgrade-card ammo-refill-card" data-ammo-refill="${ammo.type}" ${disabled ? 'disabled' : ''}>
-        <span class="upgrade-icon">${ammo.icon}</span><span class="upgrade-copy"><b>${ammo.name}<small>${count}/${capacity}</small></b><small>${description}</small></span><span class="upgrade-price">${full ? '가득 참' : `🍅 ${cost}`}</span>
+    const weaponShopCards = WEAPON_DEFINITIONS.map((weapon) => {
+      const owned = state.ownedWeapons.includes(weapon.type);
+      const disabled = owned || state.resources < weapon.weaponCost;
+      return `<button class="upgrade-card weapon-shop-card" data-buy-weapon="${weapon.type}" ${disabled ? 'disabled' : ''}>
+        <span class="upgrade-icon">${weapon.icon}</span><span class="upgrade-copy"><b>${weapon.name}<small>${owned ? '보유 중' : '새 무기'}</small></b><small>${weapon.description}</small></span><span class="upgrade-price">${owned ? '보유 중' : `🍅 ${weapon.weaponCost}`}</span>
+      </button>`;
+    }).join('');
+    const ammoShopCards = WEAPON_DEFINITIONS.filter((weapon) => state.ownedWeapons.includes(weapon.type)).map((weapon) => {
+      const count = state.ammoCounts[weapon.type];
+      const disabled = state.resources < weapon.ammoCost;
+      return `<button class="upgrade-card ammo-refill-card" data-weapon-refill="${weapon.type}" ${disabled ? 'disabled' : ''}>
+        <span class="upgrade-icon">${weapon.icon}</span><span class="upgrade-copy"><b>${weapon.ammoName}<small>${count}발 보유</small></b><small>구매하면 ${weapon.roundsPerPurchase}발 충전</small></span><span class="upgrade-price">🍅 ${weapon.ammoCost}</span>
       </button>`;
     }).join('');
     const modal = this.modalRoot();
@@ -596,8 +612,9 @@ export class GameApp {
       <div class="rest-stamp">쉼터</div><span class="modal-kicker">${state.wave}구간 통과</span><h2 id="intermission-title">잠깐 쉬어 가요</h2><p class="modal-copy">체력과 전투 상태가 회복됐어요. 다음 길에 나서기 전에 장비와 동료를 준비해요.</p>
       <div class="intermission-summary"><span>이번 구간 보상</span><b>+${12 + Math.min(20, state.wave * 2)} 🍅</b><span class="resource-total">보유 포인트 <strong>🍅 ${state.resources}</strong></span></div>
       <div class="upgrade-grid">${cards}${boulderButton}</div>
-      <div class="pet-shop ammo-shop"><div class="pet-shop-heading"><b>새총 탄약 충전</b><small>탄약을 쉼터에서 포인트로 다시 채워요.</small></div><div class="upgrade-grid ammo-shop-grid">${ammoShopCards}</div></div>
-      <div class="pet-shop"><div class="pet-shop-heading"><b>모험 동료</b><small>함께 달리며 가까운 동물을 막아 줘요.</small></div><div class="pet-shop-grid">${petCards}</div></div>
+      <div class="pet-shop weapon-shop"><div class="pet-shop-heading"><b>무기 상점</b><small>무기를 사서 함께 보유하고, 숫자 키 1~5로 바꿔 들어요.</small></div><div class="upgrade-grid weapon-shop-grid">${weaponShopCards}</div></div>
+      <div class="pet-shop ammo-shop"><div class="pet-shop-heading"><b>탄약 상점</b><small>보유한 무기의 탄약을 구매해요.</small></div><div class="upgrade-grid ammo-shop-grid">${ammoShopCards}</div></div>
+      <div class="pet-shop"><div class="pet-shop-heading"><b>고양이와 츄르</b><small>츄르 한 개(${CHURU_PRICE} 포인트)로 체력 ${CHURU_HEAL} 회복 · 기절 해제</small></div><div class="pet-shop-grid">${petCards}</div></div>
       <div class="intermission-bottom"><button class="primary-button" data-action="continue-wave">다음 구간으로 <span>→</span></button></div>
       <button class="text-button" data-action="export-quick">이어하기 코드 만들기</button>
     </section>`;
@@ -621,8 +638,16 @@ export class GameApp {
     if (this.currentView === 'intermission' && this.scene.purchasePet(type)) this.renderIntermission();
   }
 
-  private buyAmmo(type: AmmoType): void {
+  private buyAmmo(type: WeaponType): void {
     if (this.currentView === 'intermission' && this.scene.purchaseAmmo(type)) this.renderIntermission();
+  }
+
+  private buyWeapon(type: WeaponType): void {
+    if (this.currentView === 'intermission' && this.scene.purchaseWeapon(type)) this.renderIntermission();
+  }
+
+  private feedPet(type: PetType): void {
+    if (this.currentView === 'intermission' && this.scene.feedPet(type)) this.renderIntermission();
   }
 
   private showPause(): void {
@@ -766,7 +791,7 @@ export class GameApp {
 
   private showInstructions(): void {
     this.modalReturn = this.currentView;
-    this.showModal(`<section class="modal-card instructions-card" role="dialog" aria-modal="true" aria-labelledby="instructions-title"><span class="modal-kicker">플레이 안내</span><h2 id="instructions-title">효린 농장 디펜스2</h2><div class="instruction-list"><div><span>01</span><b>달리기·점프·새총</b><p>PC에서는 A/D 또는 방향키로 좌우 이동, Space 또는 위쪽 방향키로 점프, J/F나 마우스 클릭으로 공격해요. 아래 방향키 또는 S를 누른 채 Space를 누르면 플랫폼 아래로 내려갈 수 있어요. 동물 위에서 내려오면 밟아 물리칠 수도 있어요.</p></div><div><span>02</span><b>성장과 초코우유</b><p>2단계 어린이 효린으로 시작해요. 초코우유를 모으면 청소년, 성인으로 자라고, 맞으면 한 단계 어려져요. 아기 상태에서 다시 맞으면 목숨을 잃고 출발점에서 다시 시작해요.</p></div><div><span>03</span><b>여섯 종류 탄환</b><p>탄약은 BB탄 30발, 강철 BB탄 10발, 돌멩이 3발, 나머지 특수탄은 종류별 1발까지 가지고 시작해요. 탄약이 떨어지면 구간 사이 쉼터 상점에서 포인트를 써서 충전할 수 있어요. PC에서는 1~6 키로 선택할 수 있어요.</p></div><div><span>04</span><b>모바일·저장</b><p>스마트폰에서는 좌우·점프·공격을 동시에 누를 수 있어요. 일시정지에서 이어하기 코드를 만들 수 있고 진행은 이 브라우저에 자동 저장돼요.</p></div></div><div class="modal-actions"><button class="primary-button" data-action="close-modal">알겠어요</button></div></section>`);
+    this.showModal(`<section class="modal-card instructions-card" role="dialog" aria-modal="true" aria-labelledby="instructions-title"><span class="modal-kicker">플레이 안내</span><h2 id="instructions-title">효린 농장 디펜스2</h2><div class="instruction-list"><div><span>01</span><b>달리기·점프·무기</b><p>PC에서는 A/D 또는 방향키로 이동, Space 또는 위쪽 방향키로 점프, J/F나 마우스 클릭으로 공격해요. 아래 방향키 또는 S를 누른 채 Space를 누르면 플랫폼 아래로 내려갈 수 있어요. 공격은 현재 바라보는 방향으로 나가요. 동물 위에서 내려오면 밟아 물리칠 수도 있어요.</p></div><div><span>02</span><b>성장과 초코우유</b><p>2단계 어린이 효린으로 시작해요. 초코우유를 모으면 청소년, 성인으로 자라고, 맞으면 한 단계 어려져요. 아기 상태에서 다시 맞으면 목숨을 잃고 출발점에서 다시 시작해요. 레벨이 오르면 이동 속도와 점프 높이가 각각 1%씩 올라요.</p></div><div><span>03</span><b>다섯 무기와 탄약</b><p>새총·활·크로스보우·권총·자동소총을 쉼터에서 구매하고 함께 가질 수 있어요. 각각 BB탄 30발, 화살 12개, 볼트 화살 12개, 권총 탄약 12발, 소총 탄약 30발씩 충전해요. 탄약이 떨어지면 다른 무기로 자동 전환되고, 쉼터 상점에서 다시 구매할 수 있어요. PC에서는 1~5 키로 무기를 선택해요.</p></div><div><span>04</span><b>고양이와 계절</b><p>곰·호랑이·늑대도 출현해요. 고양이는 몬스터에게 다치거나 썩은 수박에 닿으면 체력이 줄거나 한 구간 동안 기절할 수 있어요. 가짜뉴스 종이는 다른 고양이를 한 번 공격하게 해요. 쉼터에서 츄르를 사서 체력을 회복시키고 계절은 세 구간마다 바뀌어요.</p></div><div><span>05</span><b>모바일·저장</b><p>스마트폰에서는 좌우·점프·공격을 동시에 누를 수 있어요. 일시정지에서 이어하기 코드를 만들 수 있고 진행은 이 브라우저에 자동 저장돼요.</p></div></div><div class="modal-actions"><button class="primary-button" data-action="close-modal">알겠어요</button></div></section>`);
     this.focusModal();
   }
 

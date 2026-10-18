@@ -1,7 +1,7 @@
 import { zlibSync } from 'fflate';
 import type { GameState } from './types';
-import { isAmmoType, normalizeAmmoCounts } from './ammo';
-import { isPetType } from './pets';
+import { isAmmoType, isWeaponType, normalizeAmmoCounts } from './ammo';
+import { isPetType, PET_MAX_HP } from './pets';
 import { DAD_MESSAGE_TEXTS, WORLD } from './engine';
 
 const CODE_PREFIX = 'HPA1';
@@ -127,10 +127,11 @@ export function isValidGameState(value: unknown): value is GameState {
   if (value.ammo !== undefined && !isAmmoType(value.ammo)) return false;
   if (value.ammoCounts !== undefined) {
     if (!isRecord(value.ammoCounts)) return false;
-    for (const ammo of ['bb', 'steelBb', 'stone', 'blast', 'lightning', 'meteor']) {
-      if (!finite(value.ammoCounts[ammo], 0, 100_000) || !Number.isInteger(value.ammoCounts[ammo])) return false;
+    for (const [ammo, count] of Object.entries(value.ammoCounts)) {
+      if (!isAmmoType(ammo) || !finite(count, 0, 100_000) || !Number.isInteger(count)) return false;
     }
   }
+  if (value.ownedWeapons !== undefined && (!Array.isArray(value.ownedWeapons) || value.ownedWeapons.some((weapon) => !isWeaponType(weapon)) || new Set(value.ownedWeapons).size !== value.ownedWeapons.length)) return false;
   if (value.milkPickups !== undefined) {
     if (!Array.isArray(value.milkPickups) || value.milkPickups.length > 20) return false;
     for (const pickup of value.milkPickups) {
@@ -169,7 +170,7 @@ export function isValidGameState(value: unknown): value is GameState {
   if (!finite(value.waveState.spawnTimer, 0, 1000) || !finite(value.waveState.phaseTimer, 0, 1000) || !finite(value.waveState.elapsed, 0, 1_000_000)) return false;
   if (!isRecord(value.stats) || !finite(value.stats.kills, 0, 10_000_000) || !finite(value.stats.protectedCrops, 0, 10_000_000) || !finite(value.stats.wavesCleared, 0, 100_000)) return false;
   if (!Array.isArray(value.enemies) || value.enemies.length > 80 || !Array.isArray(value.projectiles) || value.projectiles.length > 200) return false;
-  const kinds = ['mole', 'rabbit', 'crow', 'boar', 'kingBoar'];
+  const kinds = ['mole', 'rabbit', 'crow', 'boar', 'bear', 'tiger', 'wolf', 'kingBoar'];
   for (const enemy of value.enemies) {
     if (!isRecord(enemy) || !kinds.includes(String(enemy.kind))) return false;
     if (!finite(enemy.id, 1, 10_000_000) || !finite(enemy.x, -1000, WORLD.width + 1000) || !finite(enemy.y, -1000, WORLD.height + 1000)) return false;
@@ -194,8 +195,26 @@ export function isValidGameState(value: unknown): value is GameState {
       if (!finite(pet.x, 0, WORLD.width) || !finite(pet.y, 0, WORLD.height)) return false;
       if (!finite(pet.facingX, -1, 1) || !finite(pet.facingY, -1, 1)) return false;
       if (!finite(pet.attackCooldown, 0, 100) || !finite(pet.patrolIndex, 0, 100) || !Number.isInteger(pet.patrolIndex)) return false;
+      if (pet.hp !== undefined && (!finite(pet.hp, 0, 100_000) || !finite(pet.maxHp, 1, 100_000) || pet.hp > pet.maxHp)) return false;
+      if (pet.stunnedUntilWave !== undefined && (!finite(pet.stunnedUntilWave, 0, 100_000) || !Number.isInteger(pet.stunnedUntilWave))) return false;
+      if (pet.damageCooldown !== undefined && !finite(pet.damageCooldown, 0, 100)) return false;
     }
   }
+  for (const key of ['rottenWatermelons', 'fakeNewsPapers']) {
+    const hazards = value[key];
+    if (hazards === undefined) continue;
+    if (!Array.isArray(hazards) || hazards.length > 10) return false;
+    for (const hazard of hazards) {
+      if (!isRecord(hazard) || !finite(hazard.id, 1, 10_000_000) || !Number.isInteger(hazard.id)
+        || !finite(hazard.x, -1000, WORLD.width + 1000) || !finite(hazard.y, -1000, WORLD.height + 1000)
+        || !finite(hazard.velocityX, -1000, 1000) || !finite(hazard.life, 0, 100)) return false;
+    }
+  }
+  if (value.nextHazardId !== undefined && (!finite(value.nextHazardId, 1, 10_000_000) || !Number.isInteger(value.nextHazardId))) return false;
+  if (value.hazardSpawnTimer !== undefined && !finite(value.hazardSpawnTimer, 0, 1000)) return false;
+  if (value.terrainSeed !== undefined && (!finite(value.terrainSeed, 0, 0xffffffff) || !Number.isInteger(value.terrainSeed))) return false;
+  if (value.terrainRevision !== undefined && (!finite(value.terrainRevision, 0, 10_000_000) || !Number.isInteger(value.terrainRevision))) return false;
+  if (value.terrainSector !== undefined && (!finite(value.terrainSector, 0, 100) || !Number.isInteger(value.terrainSector))) return false;
   return true;
 }
 
@@ -208,8 +227,19 @@ export function normalizeGameState(value: unknown): GameState | null {
   state.experienceToNext = finite(state.experienceToNext, 1, 100_000_000) ? state.experienceToNext : state.level * 100;
   if (state.experience >= state.experienceToNext) state.experience = state.experienceToNext - 1;
   state.lifeCompleteShown = state.lifeCompleteShown === true;
-  state.ammo = isAmmoType(state.ammo) ? state.ammo : 'bb';
+  state.ownedWeapons = Array.isArray(state.ownedWeapons) ? [...new Set(state.ownedWeapons.filter(isWeaponType))] : ['slingshot'];
+  if (!state.ownedWeapons.includes('slingshot')) state.ownedWeapons.unshift('slingshot');
+  state.ammo = isWeaponType(state.ammo) && state.ownedWeapons.includes(state.ammo) ? state.ammo : 'slingshot';
   state.ammoCounts = normalizeAmmoCounts(isRecord(state.ammoCounts) ? state.ammoCounts as GameState['ammoCounts'] : undefined);
+  state.rottenWatermelons = Array.isArray(state.rottenWatermelons) ? state.rottenWatermelons : [];
+  state.fakeNewsPapers = Array.isArray(state.fakeNewsPapers) ? state.fakeNewsPapers : [];
+  state.nextHazardId = finite(state.nextHazardId, 1, 10_000_000)
+    ? state.nextHazardId
+    : Math.max(0, ...state.rottenWatermelons.map((hazard) => hazard.id), ...state.fakeNewsPapers.map((hazard) => hazard.id)) + 1;
+  state.hazardSpawnTimer = finite(state.hazardSpawnTimer, 0, 1000) ? state.hazardSpawnTimer : 12;
+  state.terrainSeed = finite(state.terrainSeed, 0, 0xffffffff) ? state.terrainSeed : state.seed;
+  state.terrainRevision = finite(state.terrainRevision, 0, 10_000_000) ? state.terrainRevision : 0;
+  state.terrainSector = finite(state.terrainSector, 0, 100) ? state.terrainSector : Math.floor(state.player.x / 768);
   state.milkPickups = Array.isArray(state.milkPickups) ? state.milkPickups : [
     { id: 1, x: 270, y: 520 }, { id: 2, x: 762, y: 520 }, { id: 3, x: 515, y: 244 },
   ];
@@ -221,6 +251,13 @@ export function normalizeGameState(value: unknown): GameState | null {
   state.dadMessageSpawnTimer = finite(state.dadMessageSpawnTimer, 0, 1000) ? state.dadMessageSpawnTimer : 8;
   state.boulderUnlocked = state.boulderUnlocked === true;
   state.pets = Array.isArray(state.pets) ? state.pets : [];
+  state.pets = state.pets.map((pet) => ({
+    ...pet,
+    hp: finite(pet.hp, 0, 100_000) ? pet.hp : PET_MAX_HP,
+    maxHp: finite(pet.maxHp, 1, 100_000) ? pet.maxHp : PET_MAX_HP,
+    stunnedUntilWave: finite(pet.stunnedUntilWave, 0, 100_000) ? Math.floor(pet.stunnedUntilWave) : 0,
+    damageCooldown: finite(pet.damageCooldown, 0, 100) ? pet.damageCooldown : 0,
+  }));
   state.player.meleeCooldown = finite(state.player.meleeCooldown, 0, 100) ? state.player.meleeCooldown : 0;
   state.player.boulderCooldown = finite(state.player.boulderCooldown, 0, 100) ? state.player.boulderCooldown : 0;
   state.player.stage = [1, 2, 3, 4].includes(Number(state.player.stage)) ? Number(state.player.stage) as GameState['player']['stage'] : 2;

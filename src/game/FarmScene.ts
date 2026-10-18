@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
-import { createGameState, DAD_MESSAGE_TEXTS, PLATFORM_SURFACES, stepWorld, WORLD } from './engine';
-import { normalizeAmmoCounts, refillAmmo } from './ammo';
+import { createGameState, DAD_MESSAGE_TEXTS, PLATFORM_SURFACES, seasonForWave, stepWorld, WORLD } from './engine';
+import { isWeaponType, normalizeAmmoCounts, purchaseWeapon, refillAmmo } from './ammo';
 import { applyUpgrade, repairFarm, unlockBoulder } from './upgrades';
-import type { AmmoType, Controls, EngineEvent, GameState, PetType } from './types';
-import { purchasePet } from './pets';
+import type { Controls, EngineEvent, GameState, PetType, WeaponType } from './types';
+import { feedPet, purchasePet } from './pets';
 
 export interface FarmSceneCallbacks {
   onSnapshot: (state: GameState) => void;
@@ -19,6 +19,9 @@ const SPRITES = {
   rabbit: 'rabbit',
   crow: 'crow',
   boar: 'boar',
+  bear: 'bear',
+  tiger: 'tiger',
+  wolf: 'wolf',
   kingBoar: 'king-boar',
 } as const;
 
@@ -29,13 +32,19 @@ export class FarmScene extends Phaser.Scene {
   private pauseKey?: Phaser.Input.Keyboard.Key;
   private keys: Record<string, Phaser.Input.Keyboard.Key> = {};
   private playerSprite?: Phaser.GameObjects.Sprite;
-  private slingshotSprite?: Phaser.GameObjects.Image;
+  private weaponSprite?: Phaser.GameObjects.Image;
+  private background?: Phaser.GameObjects.TileSprite;
+  private terrain?: Phaser.GameObjects.Graphics;
+  private lastTerrainRevision = -1;
   private stoneSprite?: Phaser.GameObjects.Image;
   private readonly enemySprites = new Map<number, Phaser.GameObjects.Image>();
   private readonly milkSprites = new Map<number, Phaser.GameObjects.Image>();
   private readonly dadMessageSprites = new Map<number, Phaser.GameObjects.Container>();
   private readonly enemyStatusSprites = new Map<number, Phaser.GameObjects.Text>();
   private readonly petSprites = new Map<PetType, Phaser.GameObjects.Image>();
+  private readonly petStatusSprites = new Map<PetType, Phaser.GameObjects.Text>();
+  private readonly watermelonSprites = new Map<number, Phaser.GameObjects.Text>();
+  private readonly fakeNewsSprites = new Map<number, Phaser.GameObjects.Text>();
   private readonly previousPetPositions = new Map<PetType, { x: number; y: number }>();
   private readonly projectileSprites: Phaser.GameObjects.Image[] = [];
   private bars: Phaser.GameObjects.Graphics | null = null;
@@ -74,37 +83,32 @@ export class FarmScene extends Phaser.Scene {
     this.load.image('pet-yangi', root + 'pet-yangi.png');
     this.load.image('pet-maru', root + 'pet-maru.png');
     this.load.svg('slingshot', root + 'slingshot.svg', { width: 48, height: 64 });
+    this.load.svg('weapon-bow', root + 'weapon-bow.svg', { width: 52, height: 64 });
+    this.load.svg('weapon-crossbow', root + 'weapon-crossbow.svg', { width: 64, height: 48 });
+    this.load.svg('weapon-pistol', root + 'weapon-pistol.svg', { width: 64, height: 44 });
+    this.load.svg('weapon-rifle', root + 'weapon-rifle.svg', { width: 76, height: 38 });
     this.load.svg('mole', root + 'mole.svg', { width: 72, height: 68 });
     this.load.svg('rabbit', root + 'rabbit.svg', { width: 68, height: 76 });
     this.load.svg('crow', root + 'crow.svg', { width: 78, height: 62 });
     this.load.svg('boar', root + 'boar.svg', { width: 84, height: 72 });
+    this.load.svg('bear', root + 'bear.svg', { width: 96, height: 88 });
+    this.load.svg('tiger', root + 'tiger.svg', { width: 96, height: 80 });
+    this.load.svg('wolf', root + 'wolf.svg', { width: 88, height: 72 });
     this.load.svg('king-boar', root + 'king-boar.svg', { width: 112, height: 98 });
     this.load.svg('bb-pellet', root + 'bb-pellet.svg', { width: 32, height: 32 });
     this.load.svg('steel-bb-pellet', root + 'steel-bb-pellet.svg', { width: 32, height: 32 });
     this.load.svg('stone-pellet', root + 'stone-pellet.svg', { width: 32, height: 32 });
+    this.load.svg('arrow-projectile', root + 'arrow-projectile.svg', { width: 46, height: 16 });
+    this.load.svg('bolt-projectile', root + 'bolt-projectile.svg', { width: 40, height: 16 });
+    this.load.svg('bullet-projectile', root + 'bullet-projectile.svg', { width: 24, height: 14 });
     this.load.svg('large-stone', root + 'large-stone.svg', { width: 40, height: 40 });
     this.load.svg('boulder', root + 'boulder.svg', { width: 64, height: 64 });
   }
 
   create(): void {
-    this.add.tileSprite(0, 0, WORLD.width, WORLD.height, 'farm-background').setOrigin(0, 0).setDepth(0).setScrollFactor(0.32, 0.25);
-    const terrain = this.add.graphics().setDepth(18);
-    terrain.fillStyle(0x80604a).fillRect(0, WORLD.groundY, WORLD.width, WORLD.height - WORLD.groundY);
-    terrain.fillStyle(0x6b9d53).fillRect(0, WORLD.groundY - 10, WORLD.width, 13);
-    terrain.fillStyle(0x9dbb6b, 0.7).fillRect(0, WORLD.groundY - 10, WORLD.width, 3);
-    for (let x = 18; x < WORLD.width; x += 43) {
-      terrain.fillStyle(x % 2 ? 0x745239 : 0x8c6c4f, 0.72).fillRect(x, WORLD.groundY + 14 + (x % 3) * 9, 10 + (x % 4) * 2, 3);
-      terrain.fillStyle(0x517a43, 0.9).fillTriangle(x + 4, WORLD.groundY - 8, x + 8, WORLD.groundY - 20, x + 12, WORLD.groundY - 8);
-    }
-    for (const platform of PLATFORM_SURFACES) {
-      terrain.fillStyle(0x403a30, 0.22).fillRoundedRect(platform.x + 4, platform.y + 5, platform.width, 21, 5);
-      terrain.fillStyle(0x8b6242).fillRoundedRect(platform.x, platform.y, platform.width, 19, 4);
-      terrain.fillStyle(0x669b50).fillRoundedRect(platform.x - 2, platform.y - 6, platform.width + 4, 10, 4);
-      terrain.fillStyle(0xb4c777, 0.85).fillRect(platform.x + 8, platform.y - 5, platform.width - 16, 2);
-      for (let stoneX = platform.x + 18; stoneX < platform.x + platform.width - 12; stoneX += 47) {
-        terrain.fillStyle(0x6e513b, 0.74).fillRect(stoneX, platform.y + 9, 10, 3);
-      }
-    }
+    this.background = this.add.tileSprite(0, 0, WORLD.width, WORLD.height, 'farm-background').setOrigin(0, 0).setDepth(0).setScrollFactor(0.32, 0.25);
+    this.terrain = this.add.graphics().setDepth(18);
+    this.renderTerrain(createGameState());
     for (let stage = 1; stage <= 4; stage += 1) {
       for (const animation of ['idle', 'move', 'attack', 'hit']) {
         const key = `hyorin-stage-${stage}-${animation}`;
@@ -118,7 +122,7 @@ export class FarmScene extends Phaser.Scene {
     this.playerSprite = this.add.sprite(120, WORLD.groundY, 'hyorin-stage-2-idle').setDisplaySize(58, 64).setOrigin(0.5, 1).setDepth(500);
     this.playerSprite.play('hyorin-stage-2-idle');
     this.cameras.main.setBounds(0, 0, WORLD.width, WORLD.height).startFollow(this.playerSprite, true, 0.12, 0.08);
-    this.slingshotSprite = this.add.image(145, WORLD.groundY - 36, 'slingshot').setDisplaySize(20, 27).setOrigin(0.5, 0.9).setDepth(530);
+    this.weaponSprite = this.add.image(145, WORLD.groundY - 36, 'slingshot').setDisplaySize(20, 27).setOrigin(0.5, 0.9).setDepth(530);
     this.stoneSprite = this.add.image(120, WORLD.groundY - 20, 'large-stone').setDisplaySize(28, 28).setVisible(false).setDepth(560);
     this.bars = this.add.graphics().setDepth(900);
     this.effects = this.add.graphics().setDepth(820);
@@ -141,6 +145,24 @@ export class FarmScene extends Phaser.Scene {
     this.clearWorldSprites();
     this.state = snapshot ? structuredClone(snapshot) : createGameState();
     this.state.ammoCounts = normalizeAmmoCounts(this.state.ammoCounts);
+    this.state.ownedWeapons ??= ['slingshot'];
+    if (!this.state.ownedWeapons.includes('slingshot')) this.state.ownedWeapons.unshift('slingshot');
+    this.state.ammo = isWeaponType(this.state.ammo) && this.state.ownedWeapons.includes(this.state.ammo) ? this.state.ammo : 'slingshot';
+    this.state.rottenWatermelons ??= [];
+    this.state.fakeNewsPapers ??= [];
+    this.state.nextHazardId ??= 1;
+    this.state.hazardSpawnTimer ??= 12;
+    this.state.terrainSeed ??= this.state.seed;
+    this.state.terrainRevision ??= 0;
+    this.state.terrainSector ??= Math.floor(this.state.player.x / 768);
+    this.state.pets = this.state.pets.map((pet) => ({
+      ...pet,
+      hp: pet.hp ?? 100,
+      maxHp: pet.maxHp ?? 100,
+      stunnedUntilWave: pet.stunnedUntilWave ?? 0,
+      damageCooldown: pet.damageCooldown ?? 0,
+    }));
+    this.lastTerrainRevision = -1;
     this.paused = false;
     this.clearPointerAndTouchControls();
     this.ended = false;
@@ -199,8 +221,8 @@ export class FarmScene extends Phaser.Scene {
     this.touchDirections.clear();
   }
 
-  selectAmmo(ammo: AmmoType): void {
-    if (!this.state || this.state.ammo === ammo || this.state.ammoCounts[ammo] <= 0) return;
+  selectAmmo(ammo: WeaponType): void {
+    if (!this.state || !isWeaponType(ammo) || this.state.ammo === ammo || !this.state.ownedWeapons.includes(ammo) || this.state.ammoCounts[ammo] <= 0) return;
     this.state.ammo = ammo;
     this.publishSnapshot();
     this.callbacks.onAutosave(this.snapshot());
@@ -235,7 +257,24 @@ export class FarmScene extends Phaser.Scene {
     return true;
   }
 
-  purchaseAmmo(type: AmmoType): boolean {
+  purchaseWeapon(type: WeaponType): boolean {
+    if (!this.state || !purchaseWeapon(this.state, type)) return false;
+    this.state.ammo = type;
+    this.renderState();
+    this.publishSnapshot();
+    this.callbacks.onAutosave(this.snapshot());
+    return true;
+  }
+
+  feedPet(type: PetType): boolean {
+    if (!this.state || !feedPet(this.state, type)) return false;
+    this.renderState();
+    this.publishSnapshot();
+    this.callbacks.onAutosave(this.snapshot());
+    return true;
+  }
+
+  purchaseAmmo(type: WeaponType): boolean {
     if (!this.state || !refillAmmo(this.state, type)) return false;
     this.renderState();
     this.publishSnapshot();
@@ -328,6 +367,49 @@ export class FarmScene extends Phaser.Scene {
     if (this.state) this.callbacks.onSnapshot(this.snapshot());
   }
 
+  private renderTerrain(state: GameState): void {
+    if (!this.terrain) return;
+    const graphics = this.terrain;
+    const season = seasonForWave(state.wave);
+    const palette = {
+      봄: { grass: 0x76a95a, highlight: 0xb5cf78, soil: 0x80604a, detail: [0xf3c6b1, 0xffe58a, 0xd8a5c8] },
+      여름: { grass: 0x47864e, highlight: 0x9fca57, soil: 0x77543c, detail: [0xf3db68, 0xff944b, 0xf6f0c2] },
+      가을: { grass: 0xb26d39, highlight: 0xe6b55f, soil: 0x79503b, detail: [0xd75c38, 0xe6b55f, 0x944d32] },
+      겨울: { grass: 0x92b3b0, highlight: 0xd8e6de, soil: 0x766d68, detail: [0xe8f1ed, 0xb8d7e0, 0xf4eee0] },
+    }[season];
+    let randomSeed = (state.terrainSeed ^ (state.terrainRevision * 0x9e3779b9)) >>> 0;
+    const random = (): number => {
+      randomSeed = (randomSeed * 1664525 + 1013904223) >>> 0;
+      return randomSeed / 4294967296;
+    };
+    graphics.clear();
+    graphics.fillStyle(palette.soil).fillRect(0, WORLD.groundY, WORLD.width, WORLD.height - WORLD.groundY);
+    graphics.fillStyle(palette.grass).fillRect(0, WORLD.groundY - 10, WORLD.width, 13);
+    graphics.fillStyle(palette.highlight, 0.78).fillRect(0, WORLD.groundY - 10, WORLD.width, 3);
+    for (let x = 0; x < WORLD.width; x += 17) {
+      const detailX = x + Math.floor(random() * 10);
+      graphics.fillStyle(random() > 0.5 ? 0x6b4b38 : 0x9c7654, 0.48).fillRect(detailX, WORLD.groundY + 14 + Math.floor(random() * 55), 5 + Math.floor(random() * 10), 2 + Math.floor(random() * 2));
+      if (random() > 0.37) {
+        const flower = palette.detail[Math.floor(random() * palette.detail.length)];
+        const height = 5 + random() * 11;
+        graphics.fillStyle(palette.grass === 0x92b3b0 ? 0xe8f1ed : 0x4a783e, 0.94)
+          .fillTriangle(detailX, WORLD.groundY - 7, detailX + 3, WORLD.groundY - height, detailX + 6, WORLD.groundY - 7);
+        graphics.fillStyle(flower, 0.96).fillCircle(detailX + 4, WORLD.groundY - height, 2.2);
+      }
+    }
+    for (const platform of PLATFORM_SURFACES) {
+      graphics.fillStyle(0x403a30, 0.22).fillRoundedRect(platform.x + 4, platform.y + 5, platform.width, 21, 5);
+      graphics.fillStyle(palette.soil).fillRoundedRect(platform.x, platform.y, platform.width, 19, 4);
+      graphics.fillStyle(palette.grass).fillRoundedRect(platform.x - 2, platform.y - 6, platform.width + 4, 10, 4);
+      graphics.fillStyle(palette.highlight, 0.85).fillRect(platform.x + 8, platform.y - 5, platform.width - 16, 2);
+      for (let stoneX = platform.x + 16; stoneX < platform.x + platform.width - 12; stoneX += 20 + Math.floor(random() * 25)) {
+        graphics.fillStyle(random() > 0.5 ? 0x6e513b : palette.highlight, 0.6).fillRect(stoneX, platform.y + 8 + random() * 5, 5 + random() * 8, 2 + random() * 2);
+      }
+    }
+    this.background?.setTint(season === '여름' ? 0xfff6d6 : season === '가을' ? 0xffd6a8 : season === '겨울' ? 0xd7eaff : 0xffffff);
+    this.lastTerrainRevision = state.terrainRevision;
+  }
+
   private clearWorldSprites(): void {
     for (const sprite of this.enemySprites.values()) sprite.destroy();
     this.enemySprites.clear();
@@ -339,6 +421,12 @@ export class FarmScene extends Phaser.Scene {
     this.dadMessageSprites.clear();
     for (const sprite of this.petSprites.values()) sprite.destroy();
     this.petSprites.clear();
+    for (const sprite of this.petStatusSprites.values()) sprite.destroy();
+    this.petStatusSprites.clear();
+    for (const sprite of this.watermelonSprites.values()) sprite.destroy();
+    this.watermelonSprites.clear();
+    for (const sprite of this.fakeNewsSprites.values()) sprite.destroy();
+    this.fakeNewsSprites.clear();
     this.previousPetPositions.clear();
     for (const sprite of this.projectileSprites) sprite.destroy();
     this.projectileSprites.length = 0;
@@ -347,6 +435,7 @@ export class FarmScene extends Phaser.Scene {
   private renderState(): void {
     if (!this.state || !this.playerSprite) return;
     const state = this.state;
+    if (state.terrainRevision !== this.lastTerrainRevision) this.renderTerrain(state);
     const time = this.time.now / 1000;
     const playerAnimation = this.playerHitTimer > 0 ? 'hit' : state.player.jumpTimer > 0 ? 'move' : this.playerAttackTimer > 0 ? 'attack' : this.moving ? 'move' : 'idle';
     const animationKey = `hyorin-stage-${state.player.stage}-${playerAnimation}`;
@@ -362,9 +451,15 @@ export class FarmScene extends Phaser.Scene {
     this.playerSprite.setAlpha(state.player.invulnerable > 0 && Math.floor(time * 16) % 2 === 0 ? 0.48 : 1);
     const aimAngle = Math.atan2(state.player.facingY, state.player.facingX);
     const handSide = state.player.facingX < -0.15 ? -1 : 1;
-    this.slingshotSprite?.setPosition(state.player.x + handSide * playerWidth * 0.2, state.player.y + footBob - playerHeight * 0.3)
-      .setDisplaySize(20, 27)
-      .setRotation(aimAngle + Math.PI / 2)
+    const activeWeapon = isWeaponType(state.ammo) ? state.ammo : 'slingshot';
+    const weaponTexture: Record<WeaponType, string> = { slingshot: 'slingshot', bow: 'weapon-bow', crossbow: 'weapon-crossbow', pistol: 'weapon-pistol', rifle: 'weapon-rifle' };
+    const weaponSize: Record<WeaponType, [number, number]> = { slingshot: [20, 27], bow: [19, 30], crossbow: [30, 19], pistol: [27, 18], rifle: [34, 17] };
+    const weaponRotationOffset: Record<WeaponType, number> = { slingshot: Math.PI / 2, bow: 0, crossbow: 0, pistol: 0, rifle: 0 };
+    const [weaponWidth, weaponHeight] = weaponSize[activeWeapon];
+    this.weaponSprite?.setTexture(weaponTexture[activeWeapon])
+      .setPosition(state.player.x + handSide * playerWidth * 0.2, state.player.y + footBob - playerHeight * 0.3)
+      .setDisplaySize(weaponWidth, weaponHeight)
+      .setRotation(aimAngle + weaponRotationOffset[activeWeapon])
       .setDepth(state.player.y + 28);
     if (this.stoneSprite) {
       const active = this.meleeEffectTimer > 0;
@@ -386,6 +481,8 @@ export class FarmScene extends Phaser.Scene {
         sprite.destroy();
         this.petSprites.delete(type);
         this.previousPetPositions.delete(type);
+        this.petStatusSprites.get(type)?.destroy();
+        this.petStatusSprites.delete(type);
       }
     }
     state.pets.forEach((pet, index) => {
@@ -402,7 +499,36 @@ export class FarmScene extends Phaser.Scene {
       sprite.setPosition(pet.x, pet.y + bob)
         .setFlipX(pet.facingX < -0.15)
         .setRotation(pet.facingY * 0.05)
+        .setAlpha(pet.hp <= 0 ? 0.35 : pet.stunnedUntilWave > state.wave ? 0.62 : 1)
+        .setTint(pet.hp <= 0 ? 0x777777 : pet.stunnedUntilWave > state.wave ? 0xb8ccdf : 0xffffff)
         .setDepth(pet.y + 14);
+      let statusSprite = this.petStatusSprites.get(pet.type);
+      if (!statusSprite) {
+        statusSprite = this.add.text(pet.x, pet.y - 38, '', { fontFamily: 'sans-serif', fontSize: '15px', color: '#fff6d7', stroke: '#493b27', strokeThickness: 3 }).setOrigin(0.5).setDepth(950);
+        this.petStatusSprites.set(pet.type, statusSprite);
+      }
+      statusSprite.setPosition(pet.x, pet.y - 40).setText(pet.hp <= 0 ? '💤' : pet.stunnedUntilWave > state.wave ? '💫' : '').setVisible(pet.hp <= 0 || pet.stunnedUntilWave > state.wave);
+    });
+
+    const watermelonIds = new Set(state.rottenWatermelons.map((hazard) => hazard.id));
+    for (const [id, sprite] of this.watermelonSprites) if (!watermelonIds.has(id)) { sprite.destroy(); this.watermelonSprites.delete(id); }
+    state.rottenWatermelons.forEach((hazard) => {
+      let sprite = this.watermelonSprites.get(hazard.id);
+      if (!sprite) {
+        sprite = this.add.text(hazard.x, hazard.y, '🤢🍉', { fontSize: '23px' }).setOrigin(0.5).setDepth(hazard.y + 35);
+        this.watermelonSprites.set(hazard.id, sprite);
+      }
+      sprite.setPosition(hazard.x, hazard.y - 9).setDepth(hazard.y + 35);
+    });
+    const paperIds = new Set(state.fakeNewsPapers.map((hazard) => hazard.id));
+    for (const [id, sprite] of this.fakeNewsSprites) if (!paperIds.has(id)) { sprite.destroy(); this.fakeNewsSprites.delete(id); }
+    state.fakeNewsPapers.forEach((hazard) => {
+      let sprite = this.fakeNewsSprites.get(hazard.id);
+      if (!sprite) {
+        sprite = this.add.text(hazard.x, hazard.y, '📰 가짜뉴스', { fontFamily: 'sans-serif', fontSize: '12px', fontStyle: 'bold', color: '#382c20', backgroundColor: '#fff3d2', padding: { left: 5, right: 5, top: 3, bottom: 3 } }).setOrigin(0.5).setDepth(hazard.y + 36);
+        this.fakeNewsSprites.set(hazard.id, sprite);
+      }
+      sprite.setPosition(hazard.x, hazard.y).setDepth(hazard.y + 36).setRotation(Math.sin(time * 8 + hazard.id) * 0.08);
     });
 
     const pickupIds = new Set(state.milkPickups.map((pickup) => pickup.id));
@@ -473,7 +599,7 @@ export class FarmScene extends Phaser.Scene {
       sprite.setPosition(enemy.x, enemy.y + bob);
       sprite.setDepth(enemy.y + 12);
       sprite.setAlpha(enemy.kind === 'mole' && enemy.mood === 'burrow' ? 0.12 : 1);
-      sprite.setScale(enemy.kind === 'kingBoar' ? 0.85 : enemy.kind === 'boar' ? 0.61 : 0.55);
+      sprite.setScale(enemy.kind === 'kingBoar' ? 0.85 : enemy.kind === 'bear' ? 0.75 : enemy.kind === 'tiger' ? 0.64 : enemy.kind === 'wolf' ? 0.58 : enemy.kind === 'boar' ? 0.61 : 0.55);
       if (enemy.hitFlash > 0) sprite.setTint(0xffeee0);
       else sprite.clearTint();
       sprite.setRotation(enemy.kind === 'crow' ? Math.sin(time * 4 + enemy.id) * 0.05 : 0);
@@ -496,7 +622,7 @@ export class FarmScene extends Phaser.Scene {
     state.projectiles.forEach((projectile, index) => {
       const sprite = this.projectileSprites[index];
       const type = projectile.ammo ?? 'bb';
-      const texture = type === 'steelBb' ? 'steel-bb-pellet' : type === 'stone' ? 'stone-pellet' : 'bb-pellet';
+      const texture = type === 'bow' ? 'arrow-projectile' : type === 'crossbow' ? 'bolt-projectile' : type === 'pistol' || type === 'rifle' ? 'bullet-projectile' : type === 'steelBb' ? 'steel-bb-pellet' : type === 'stone' ? 'stone-pellet' : 'bb-pellet';
       const size = type === 'stone' || type === 'meteor' ? 16 : type === 'blast' ? 13 : type === 'lightning' ? 11 : type === 'steelBb' ? 11 : 9;
       sprite?.setTexture(texture).setTint(type === 'blast' ? 0xff7045 : type === 'lightning' ? 0xffe45c : type === 'meteor' ? 0xb264e9 : 0xffffff).setDisplaySize(size, size).setPosition(projectile.x, projectile.y).setRotation(Math.atan2(projectile.vy, projectile.vx));
     });
@@ -529,6 +655,14 @@ export class FarmScene extends Phaser.Scene {
       const y = enemy.y - (boss ? 58 : 39);
       graphics.fillStyle(0x26362c, 0.76).fillRoundedRect(x - 1, y - 1, width + 2, 6, 3);
       graphics.fillStyle(boss ? 0xe7674f : 0xf2cd73, 1).fillRoundedRect(x, y, width * ratio, 4, 2);
+    }
+    for (const pet of state.pets) {
+      if (pet.hp >= pet.maxHp && pet.stunnedUntilWave <= state.wave) continue;
+      const width = 28;
+      const x = pet.x - width / 2;
+      const y = pet.y - 39;
+      graphics.fillStyle(0x26362c, 0.78).fillRoundedRect(x, y, width, 4, 2);
+      graphics.fillStyle(pet.hp <= 25 ? 0xe15b4c : 0x88d27a, 1).fillRoundedRect(x, y, width * Math.max(0, pet.hp / pet.maxHp), 4, 2);
     }
   }
 }

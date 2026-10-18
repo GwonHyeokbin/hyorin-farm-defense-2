@@ -1,6 +1,6 @@
 import type { Controls, EnemyKind, EnemyState, EngineEvent, GameState, GrowthStage, MilkPickupState } from './types';
-import { AMMO_DEFINITIONS, createAmmoCounts, getAmmoDefinition } from './ammo';
-import { getPetDefinition } from './pets';
+import { createAmmoCounts, getAmmoDefinition, getWeaponDefinition, isLegacyAmmoType, isWeaponType, WEAPON_DEFINITIONS } from './ammo';
+import { FAKE_NEWS_FRIENDLY_FIRE_DAMAGE, getPetDefinition } from './pets';
 
 export const WORLD = { width: 3072, height: 640, groundY: 560 } as const;
 export const DAD_MESSAGE_TEXTS = [
@@ -13,6 +13,11 @@ export const DAD_MESSAGE_TEXTS = [
   '고민있으면 아빠한테 말하렴',
 ] as const;
 export const LEVEL_100_MESSAGE = '효린이는 행복한 가정에서 환생하여 하고 싶은 일 마음껏 하며 원하는 모든 것을 이루고 살아가게 됩니다. 게임은 계속 진행할 수 있습니다.';
+export const SEASONS = ['봄', '여름', '가을', '겨울'] as const;
+export type SeasonName = (typeof SEASONS)[number];
+export function seasonForWave(wave: number): SeasonName {
+  return SEASONS[Math.floor(Math.max(0, wave - 1) / 3) % SEASONS.length];
+}
 export const PLATFORM_SURFACES = [
   { x: 340, y: 460, width: 176 }, { x: 690, y: 390, width: 184 },
   { x: 1090, y: 475, width: 208 }, { x: 1485, y: 408, width: 194 },
@@ -42,6 +47,9 @@ const ENEMY_INFO: Record<EnemyKind, { hp: number; speed: number; damage: number;
   rabbit: { hp: 28, speed: 58, damage: 5, score: 120, resource: 3, experience: 16 },
   crow: { hp: 18, speed: 64, damage: 4, score: 110, resource: 2, experience: 14 },
   boar: { hp: 58, speed: 40, damage: 8, score: 250, resource: 5, experience: 32 },
+  bear: { hp: 106, speed: 27, damage: 12, score: 420, resource: 9, experience: 48 },
+  tiger: { hp: 62, speed: 73, damage: 10, score: 390, resource: 8, experience: 42 },
+  wolf: { hp: 42, speed: 78, damage: 7, score: 275, resource: 6, experience: 31 },
   kingBoar: { hp: 260, speed: 47, damage: 14, score: 1600, resource: 25, experience: 120 },
 };
 
@@ -59,13 +67,21 @@ export function createGameState(seed = Date.now() >>> 0): GameState {
     experience: 0,
     experienceToNext: 100,
     lifeCompleteShown: false,
-    ammo: 'bb',
+    ammo: 'slingshot',
     ammoCounts: createAmmoCounts(),
+    ownedWeapons: ['slingshot'],
     milkPickups: structuredClone(STARTING_MILK),
     nextMilkId: STARTING_MILK.length + 1,
     dadMessagePickups: [],
     nextDadMessageId: 1,
     dadMessageSpawnTimer: 8,
+    rottenWatermelons: [],
+    fakeNewsPapers: [],
+    nextHazardId: 1,
+    hazardSpawnTimer: 12,
+    terrainSeed: (seed >>> 0) || 1,
+    terrainRevision: 0,
+    terrainSector: 0,
     boulderUnlocked: false,
     pets: [],
     player: { x: 120, y: WORLD.groundY, velocityY: 0, grounded: true, hp: 100, maxHp: 100, attackCooldown: 0, meleeCooldown: 0, boulderCooldown: 0, invulnerable: 0, facingX: 1, facingY: 0, stage: 2, lives: 3, jumpTimer: 0, jumpCooldown: 0 },
@@ -97,6 +113,9 @@ function random(state: GameState): number {
 
 function beginWave(state: GameState): EngineEvent {
   state.wave += 1;
+  state.ammo = 'slingshot';
+  state.terrainSeed = random(state) * 0xffffffff >>> 0;
+  state.terrainRevision += 1;
   state.waveState = {
     phase: 'defend',
     total: Math.min(2 + Math.ceil(state.wave), 12) + (state.wave % 5 === 0 ? 1 : 0),
@@ -105,7 +124,7 @@ function beginWave(state: GameState): EngineEvent {
     phaseTimer: 0,
     elapsed: 0,
   };
-  return { type: 'wave-start', text: `${state.wave}구간 모험 시작!` };
+  return { type: 'wave-start', text: `${state.wave}구간 · ${seasonForWave(state.wave)} 모험 시작!` };
 }
 
 function chooseTarget(state: GameState, kind: EnemyKind): number {
@@ -120,10 +139,13 @@ function spawnEnemy(state: GameState): void {
   let kind: EnemyKind;
   if (state.wave % 5 === 0 && state.waveState.spawned === state.waveState.total - 1) kind = 'kingBoar';
   else if (state.wave < 2) kind = choice < 0.55 ? 'mole' : 'rabbit';
-  else if (choice < 0.27) kind = 'mole';
-  else if (choice < 0.53) kind = 'rabbit';
-  else if (choice < 0.78) kind = 'crow';
-  else kind = 'boar';
+  else if (choice < 0.17) kind = 'mole';
+  else if (choice < 0.34) kind = 'rabbit';
+  else if (choice < 0.49) kind = 'crow';
+  else if (choice < 0.63) kind = 'wolf';
+  else if (choice < 0.76) kind = 'boar';
+  else if (choice < 0.86) kind = 'tiger';
+  else kind = 'bear';
 
   const fromLeft = random(state) < 0.5;
   const x = PhaserMathClamp(state.player.x + (fromLeft ? -1 : 1) * (430 + random(state) * 220), 30, WORLD.width - 30);
@@ -141,7 +163,7 @@ function spawnEnemy(state: GameState): void {
     speed: info.speed * Math.min(1.18, 1 + (state.wave - 1) * 0.01),
     targetIndex,
     mood: kind === 'mole' ? 'burrow' : kind === 'crow' ? 'dive' : 'seek',
-    moodTimer: kind === 'mole' ? 1.1 : kind === 'crow' ? 1.5 : kind === 'boar' ? 2.2 : 0,
+    moodTimer: kind === 'mole' ? 1.1 : kind === 'crow' ? 1.5 : ['boar', 'bear', 'tiger'].includes(kind) ? 2.2 : 0,
     attackCooldown: 1.2,
     contactCooldown: 0,
     hitFlash: 0,
@@ -152,51 +174,52 @@ function spawnEnemy(state: GameState): void {
   state.waveState.spawned += 1;
 }
 
-function getNearestEnemy(state: GameState, x: number, y: number): { enemy: EnemyState; distance: number } | null {
-  let nearest: { enemy: EnemyState; distance: number } | null = null;
-  for (const enemy of state.enemies) {
-    if (enemy.hp <= 0 || (enemy.kind === 'mole' && enemy.mood === 'burrow')) continue;
-    const distance = Math.hypot(enemy.x - x, enemy.y - y);
-    if (!nearest || distance < nearest.distance) nearest = { enemy, distance };
-  }
-  return nearest;
-}
-
 function spawnProjectile(state: GameState): boolean {
   const { player } = state;
-  const sourceY = player.y - 42;
-  const nearest = getNearestEnemy(state, player.x, sourceY);
-  if (!nearest || nearest.distance > 900) return false;
-  const target = nearest.enemy;
-  const dx = target.x - player.x;
-  const dy = target.y - sourceY;
-  const length = Math.hypot(dx, dy) || 1;
+  const facing = player.facingX < 0 ? -1 : 1;
+  const sourceY = player.y - 32;
   let ammoType = state.ammo;
-  if (state.ammoCounts[ammoType] <= 0) {
-    const nextAmmo = AMMO_DEFINITIONS.find((definition) => state.ammoCounts[definition.type] > 0);
-    if (!nextAmmo) return false;
-    ammoType = nextAmmo.type;
-    state.ammo = ammoType;
+  let damage: number;
+  let speed: number;
+  let cooldown: number;
+
+  if (isLegacyAmmoType(ammoType)) {
+    if (state.ammoCounts[ammoType] <= 0) return false;
+    const ammo = getAmmoDefinition(ammoType);
+    damage = ammo.damage * (1 + state.upgrades.power * 0.12);
+    speed = ammo.speed;
+    cooldown = 0.48;
+  } else {
+    if (!state.ownedWeapons.includes(ammoType) || state.ammoCounts[ammoType] <= 0) {
+      const nextWeapon = WEAPON_DEFINITIONS.find((weapon) => state.ownedWeapons.includes(weapon.type) && state.ammoCounts[weapon.type] > 0);
+      if (!nextWeapon) return false;
+      ammoType = nextWeapon.type;
+      state.ammo = ammoType;
+    }
+    const weapon = getWeaponDefinition(ammoType);
+    damage = weapon.power * 20 * (1 + state.upgrades.power * 0.12);
+    speed = weapon.projectileSpeed;
+    cooldown = 1 / weapon.shotsPerSecond;
   }
-  const ammo = getAmmoDefinition(ammoType);
   state.ammoCounts[ammoType] -= 1;
-  const damage = ammo.damage * (1 + state.upgrades.power * 0.12);
   state.projectiles.push({
-    x: player.x + dx / length * 16,
-    y: sourceY + dy / length * 16,
-    vx: dx / length * ammo.speed,
-    vy: dy / length * ammo.speed,
+    x: player.x + facing * 24,
+    y: sourceY,
+    vx: facing * speed,
+    vy: 0,
     damage,
     life: 1.6,
     ammo: ammoType,
-    targetId: target.id,
   });
-  if (state.ammoCounts[ammoType] === 0) {
-    const nextAmmo = AMMO_DEFINITIONS.find((definition) => state.ammoCounts[definition.type] > 0);
-    if (nextAmmo) state.ammo = nextAmmo.type;
+  player.attackCooldown = cooldown;
+  if (isWeaponType(ammoType)) {
+    if (state.ammoCounts[ammoType] === 0) {
+      const nextWeapon = WEAPON_DEFINITIONS.find((weapon) => state.ownedWeapons.includes(weapon.type) && state.ammoCounts[weapon.type] > 0);
+      if (nextWeapon) state.ammo = nextWeapon.type;
+    }
   }
-  player.facingX = dx / length;
-  player.facingY = dy / length;
+  player.facingX = facing;
+  player.facingY = 0;
   return true;
 }
 
@@ -206,7 +229,7 @@ function increaseExperience(state: GameState, amount: number, events: EngineEven
     state.experience -= state.experienceToNext;
     state.level += 1;
     state.experienceToNext = state.level * 100;
-    events.push({ type: 'level-up', text: `레벨 ${state.level}! 공격 속도 +1%` });
+    events.push({ type: 'level-up', text: `레벨 ${state.level}! 이동 속도와 점프 높이 +1%` });
     announceLevel100(state, events);
   }
 }
@@ -300,8 +323,7 @@ function attackWithLargeStone(state: GameState, events: EngineEvent[]): void {
     .filter((entry) => entry.distance <= 68)
     .sort((a, b) => a.distance - b.distance)[0];
   if (!target) return;
-  const rate = (1 + (state.level - 1) * 0.01) * (1 + state.upgrades.rapid * 0.08);
-  player.meleeCooldown = 1.15 / rate;
+  player.meleeCooldown = 1.15;
   applyEnemyStatus(target.enemy, 'groggy', 1.4);
   events.push({ type: 'melee' }, { type: 'groggy' });
   damageEnemy(state, target.enemy, 34 * (1 + state.upgrades.power * 0.12), events);
@@ -314,8 +336,7 @@ function attackWithBoulder(state: GameState, events: EngineEvent[]): void {
     .filter((enemy) => enemy.hp > 0 && Math.hypot(enemy.x - player.x, enemy.y - player.y) <= 92)
     .slice(0, 4);
   if (targets.length === 0) return;
-  const rate = (1 + (state.level - 1) * 0.01) * (1 + state.upgrades.rapid * 0.08);
-  player.boulderCooldown = 5.5 / rate;
+  player.boulderCooldown = 5.5;
   events.push({ type: 'boulder', text: '바위 강타!' });
   for (const enemy of targets) {
     applyEnemyStatus(enemy, 'stun', 1.1);
@@ -352,13 +373,14 @@ function updateEnemy(state: GameState, enemy: EnemyState, dt: number, events: En
     enemy.mood = 'dive';
     enemy.moodTimer = 0.8;
   }
-  if (enemy.kind === 'boar' || enemy.kind === 'kingBoar') {
+  if (enemy.kind === 'boar' || enemy.kind === 'kingBoar' || enemy.kind === 'bear' || enemy.kind === 'tiger') {
     if (enemy.moodTimer <= 0) {
       enemy.mood = enemy.mood === 'charge' ? 'seek' : 'charge';
-      enemy.moodTimer = enemy.mood === 'charge' ? 0.95 : 2.7;
+      enemy.moodTimer = enemy.mood === 'charge' ? (enemy.kind === 'tiger' ? 0.65 : 1.05) : (enemy.kind === 'tiger' ? 2.0 : 2.8);
     }
-    if (enemy.mood === 'charge') speed *= enemy.kind === 'kingBoar' ? 3.2 : 2.7;
+    if (enemy.mood === 'charge') speed *= enemy.kind === 'kingBoar' ? 3.2 : enemy.kind === 'tiger' ? 2.6 : enemy.kind === 'bear' ? 1.9 : 2.3;
   }
+  if (enemy.kind === 'wolf' && state.enemies.some((ally) => ally.id !== enemy.id && ally.kind === 'wolf' && ally.hp > 0 && Math.abs(ally.x - enemy.x) < 150)) speed *= 1.14;
 
   const dx = target.x - enemy.x;
   const dy = target.y - enemy.y;
@@ -373,9 +395,9 @@ function updateEnemy(state: GameState, enemy: EnemyState, dt: number, events: En
 
   const stageHeights: Record<GrowthStage, number> = { 1: 48, 2: 64, 3: 72, 4: 80 };
   const playerTop = state.player.y - stageHeights[state.player.stage];
-  const enemyTop = enemy.y - (enemy.kind === 'kingBoar' ? 38 : 22);
+  const enemyTop = enemy.y - (enemy.kind === 'kingBoar' || enemy.kind === 'bear' ? 42 : enemy.kind === 'tiger' ? 34 : 22);
   const enemyBottom = enemy.y + 10;
-  const horizontalOverlap = Math.abs(state.player.x - enemy.x) < (enemy.kind === 'kingBoar' ? 38 : 30);
+  const horizontalOverlap = Math.abs(state.player.x - enemy.x) < (enemy.kind === 'kingBoar' || enemy.kind === 'bear' ? 42 : enemy.kind === 'tiger' ? 36 : 30);
   const verticalOverlap = playerTop < enemyBottom && state.player.y > enemyTop;
   if (enemy.hp > 0 && horizontalOverlap && verticalOverlap) {
     if (previousPlayerY <= enemyTop && state.player.y >= enemyTop && state.player.velocityY > 0) {
@@ -431,6 +453,8 @@ function collectMilk(state: GameState, events: EngineEvent[]): void {
 
 function updatePets(state: GameState, dt: number, events: EngineEvent[]): void {
   for (const pet of state.pets) {
+    pet.damageCooldown = Math.max(0, pet.damageCooldown - dt);
+    if (pet.hp <= 0 || pet.stunnedUntilWave > state.wave) continue;
     const definition = getPetDefinition(pet.type);
     pet.attackCooldown = Math.max(0, pet.attackCooldown - dt);
     const target = state.enemies
@@ -479,6 +503,89 @@ function updatePets(state: GameState, dt: number, events: EngineEvent[]): void {
   }
 }
 
+function damagePet(pet: GameState['pets'][number], damage: number, events: EngineEvent[], text: string): void {
+  if (pet.hp <= 0) return;
+  pet.hp = Math.max(0, pet.hp - damage);
+  events.push({ type: 'pet-damaged', text: pet.hp <= 0 ? `${text} ${pet.type}의 체력이 0이 됐어요. 쉼터에서 츄르를 먹여 주세요.` : text });
+}
+
+function spawnRottenWatermelon(state: GameState): void {
+  const availablePets = state.pets.filter((pet) => pet.hp > 0 && pet.stunnedUntilWave <= state.wave);
+  if (!availablePets.length || state.rottenWatermelons.length >= 2) return;
+  const target = availablePets[Math.floor(random(state) * availablePets.length)];
+  const direction = random(state) < 0.5 ? -1 : 1;
+  state.rottenWatermelons.push({
+    id: state.nextHazardId++,
+    x: PhaserMathClamp(target.x + direction * (170 + random(state) * 130), 40, WORLD.width - 40),
+    y: target.y,
+    velocityX: -direction * (42 + random(state) * 26),
+    life: 16,
+  });
+}
+
+function spawnFakeNews(state: GameState): void {
+  const availablePets = state.pets.filter((pet) => pet.hp > 0 && pet.stunnedUntilWave <= state.wave);
+  if (!availablePets.length || state.fakeNewsPapers.length >= 2) return;
+  const target = availablePets[Math.floor(random(state) * availablePets.length)];
+  const direction = random(state) < 0.5 ? -1 : 1;
+  state.fakeNewsPapers.push({
+    id: state.nextHazardId++,
+    x: PhaserMathClamp(target.x - direction * (220 + random(state) * 90), 30, WORLD.width - 30),
+    y: PhaserMathClamp(target.y - 20, 100, WORLD.groundY - 35),
+    velocityX: direction * (125 + random(state) * 45),
+    life: 8,
+  });
+}
+
+function updateHazards(state: GameState, dt: number, events: EngineEvent[]): void {
+  state.hazardSpawnTimer = Math.max(0, state.hazardSpawnTimer - dt);
+  if (state.hazardSpawnTimer <= 0) {
+    if (state.pets.some((pet) => pet.hp > 0)) {
+      if (random(state) < 0.55) spawnRottenWatermelon(state);
+      else spawnFakeNews(state);
+    }
+    state.hazardSpawnTimer = 14 + random(state) * 9;
+  }
+
+  const remainingWatermelons = [] as GameState['rottenWatermelons'];
+  for (const hazard of state.rottenWatermelons) {
+    hazard.x += hazard.velocityX * dt;
+    hazard.life -= dt;
+    if (hazard.x < 26 || hazard.x > WORLD.width - 26) hazard.velocityX *= -1;
+    const target = state.pets.find((pet) => pet.hp > 0 && pet.stunnedUntilWave <= state.wave && Math.hypot(pet.x - hazard.x, pet.y - hazard.y) <= 38);
+    if (target) {
+      target.stunnedUntilWave = state.wave + 2;
+      events.push({ type: 'pet-stunned', text: `썩은 수박에 닿은 ${target.type}가 한 구간 동안 기절했어요.` });
+    } else if (hazard.life > 0) remainingWatermelons.push(hazard);
+  }
+  state.rottenWatermelons = remainingWatermelons;
+
+  const remainingPapers = [] as GameState['fakeNewsPapers'];
+  for (const paper of state.fakeNewsPapers) {
+    paper.x += paper.velocityX * dt;
+    paper.life -= dt;
+    const target = state.pets.find((pet) => pet.hp > 0 && Math.hypot(pet.x - paper.x, pet.y - paper.y) <= 34);
+    if (target) {
+      const other = state.pets
+        .filter((pet) => pet.type !== target.type && pet.hp > 0)
+        .sort((a, b) => Math.hypot(a.x - target.x, a.y - target.y) - Math.hypot(b.x - target.x, b.y - target.y))[0];
+      if (other) damagePet(other, FAKE_NEWS_FRIENDLY_FIRE_DAMAGE, events, `가짜뉴스 종이에 놀란 ${target.type}가 ${other.type}를 한 번 공격했어요.`);
+      else events.push({ type: 'fake-news', text: '가짜뉴스가 사라졌어요. 공격할 다른 고양이가 없어요.' });
+    } else if (paper.life > 0 && paper.x > 20 && paper.x < WORLD.width - 20) remainingPapers.push(paper);
+  }
+  state.fakeNewsPapers = remainingPapers;
+
+  for (const enemy of state.enemies) {
+    if (enemy.hp <= 0) continue;
+    for (const pet of state.pets) {
+      if (pet.hp <= 0 || pet.stunnedUntilWave > state.wave || pet.damageCooldown > 0) continue;
+      if (Math.hypot(enemy.x - pet.x, enemy.y - pet.y) > (enemy.kind === 'bear' ? 48 : 36)) continue;
+      pet.damageCooldown = 1.3;
+      damagePet(pet, Math.max(4, ENEMY_INFO[enemy.kind].damage), events, `${pet.type}가 ${enemy.kind} 몬스터에게 공격받았어요.`);
+    }
+  }
+}
+
 function PhaserMathClamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
@@ -502,17 +609,28 @@ export function stepWorld(state: GameState, rawDt: number, controls: Controls = 
   state.player.boulderCooldown = Math.max(0, state.player.boulderCooldown - dt);
 
   const vx = Number(Boolean(controls.right)) - Number(Boolean(controls.left));
-  const moveSpeed = 220 + state.upgrades.speed * 15;
+  const levelBonus = 1 + Math.max(0, state.level - 1) * 0.01;
+  const moveSpeed = (220 + state.upgrades.speed * 15) * levelBonus;
   const previousX = state.player.x;
   const previousY = state.player.y;
   state.player.x = PhaserMathClamp(previousX + vx * moveSpeed * dt, 28, WORLD.width - 28);
+  if (vx) {
+    state.player.facingX = Math.sign(vx);
+    state.player.facingY = 0;
+  }
+  const sector = Math.floor(state.player.x / 768);
+  if (sector !== state.terrainSector) {
+    state.terrainSector = sector;
+    state.terrainSeed = Math.floor(random(state) * 0xffffffff) >>> 0;
+    state.terrainRevision += 1;
+  }
   const dropThroughPlatform = Boolean(controls.down && controls.jump && state.player.grounded && state.player.y < WORLD.groundY);
   if (dropThroughPlatform) {
     state.player.grounded = false;
     state.player.velocityY = 180;
     state.player.jumpTimer = 0;
   } else if (controls.jump && state.player.grounded && state.player.jumpCooldown <= 0) {
-    state.player.velocityY = -620 - state.upgrades.fence * 24;
+    state.player.velocityY = -620 * levelBonus;
     state.player.grounded = false;
     state.player.jumpTimer = 0;
     state.player.jumpCooldown = 0.18;
@@ -552,23 +670,9 @@ export function stepWorld(state: GameState, rawDt: number, controls: Controls = 
   }
   collectMilk(state, events);
   updateDadMessages(state, dt, events);
-  const nearestEnemy = getNearestEnemy(state, state.player.x, state.player.y);
-  if (nearestEnemy && nearestEnemy.distance <= 900) {
-    const aimX = nearestEnemy.enemy.x - state.player.x;
-    const aimY = nearestEnemy.enemy.y - state.player.y;
-    const aimLength = Math.hypot(aimX, aimY) || 1;
-    state.player.facingX = aimX / aimLength;
-    state.player.facingY = aimY / aimLength;
-  } else if (vx) {
-    state.player.facingX = Math.sign(vx);
-    state.player.facingY = 0;
-  }
-
   if (controls.attack && state.player.attackCooldown <= 0) {
     if (spawnProjectile(state)) {
       events.push({ type: 'fire' });
-      const rate = (1 + (state.level - 1) * 0.01) * (1 + state.upgrades.rapid * 0.08);
-      state.player.attackCooldown = 0.48 / rate;
     }
   }
 
@@ -587,26 +691,12 @@ export function stepWorld(state: GameState, rawDt: number, controls: Controls = 
   }
 
   for (const enemy of state.enemies) updateEnemy(state, enemy, dt, events, previousY);
+  updateHazards(state, dt, events);
   updatePets(state, dt, events);
   attackWithLargeStone(state, events);
   attackWithBoulder(state, events);
   const remainingProjectiles: GameState['projectiles'] = [];
   for (const projectile of state.projectiles) {
-    let target = projectile.targetId === undefined
-      ? undefined
-      : state.enemies.find((enemy) => enemy.id === projectile.targetId && enemy.hp > 0);
-    if (!target) {
-      target = getNearestEnemy(state, projectile.x, projectile.y)?.enemy;
-      if (target) projectile.targetId = target.id;
-    }
-    if (target) {
-      const dx = target.x - projectile.x;
-      const dy = target.y - projectile.y;
-      const distance = Math.hypot(dx, dy) || 1;
-      const speed = Math.hypot(projectile.vx, projectile.vy) || getAmmoDefinition(projectile.ammo ?? 'bb').speed;
-      projectile.vx = dx / distance * speed;
-      projectile.vy = dy / distance * speed;
-    }
     projectile.x += projectile.vx * dt;
     projectile.y += projectile.vy * dt;
     projectile.life -= dt;
@@ -624,16 +714,19 @@ export function stepWorld(state: GameState, rawDt: number, controls: Controls = 
         events.push({ type: 'knockback' });
       }
       const ammoType = projectile.ammo ?? 'bb';
-      const definition = getAmmoDefinition(ammoType);
-      if (ammoType === 'blast' || ammoType === 'meteor') {
+      const legacyType = isLegacyAmmoType(ammoType) ? ammoType : null;
+      const definition = legacyType ? getAmmoDefinition(legacyType) : null;
+      if (legacyType === 'blast' || legacyType === 'meteor') {
+        if (!definition) continue;
         const radius = definition.blastRadius ?? 90;
         const affected = state.enemies.filter((candidate) => candidate.hp > 0 && Math.hypot(candidate.x - projectile.x, candidate.y - projectile.y) <= radius);
         for (const candidate of affected) {
           const distance = Math.hypot(candidate.x - projectile.x, candidate.y - projectile.y);
-          damageEnemy(state, candidate, projectile.damage * (distance <= 24 ? 1 : ammoType === 'meteor' ? 0.76 : 0.68), events);
+          damageEnemy(state, candidate, projectile.damage * (distance <= 24 ? 1 : legacyType === 'meteor' ? 0.76 : 0.68), events);
         }
-        events.push({ type: 'special-attack', text: ammoType, x: projectile.x, y: projectile.y });
-      } else if (ammoType === 'lightning') {
+        events.push({ type: 'special-attack', text: legacyType, x: projectile.x, y: projectile.y });
+      } else if (legacyType === 'lightning') {
+        if (!definition) continue;
         const chained = [enemy];
         let origin = enemy;
         while (chained.length < (definition.chainCount ?? 3) + 1) {
@@ -647,7 +740,7 @@ export function stepWorld(state: GameState, rawDt: number, controls: Controls = 
           origin = next;
         }
         chained.forEach((candidate, index) => damageEnemy(state, candidate, projectile.damage * (index === 0 ? 1 : 0.68 ** index), events));
-        events.push({ type: 'special-attack', text: ammoType, x: projectile.x, y: projectile.y });
+        events.push({ type: 'special-attack', text: legacyType, x: projectile.x, y: projectile.y });
       } else damageEnemy(state, enemy, projectile.damage, events);
       hit = true;
       break;

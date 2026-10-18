@@ -3,12 +3,10 @@ import type { GameState, UpgradeDefinition, UpgradeKey } from './types';
 export const BOULDER_UPGRADE_COST = 35;
 
 export const UPGRADE_DEFINITIONS: UpgradeDefinition[] = [
-  { key: 'power', name: '새총 위력', icon: '🎯', description: '탄환과 돌 공격의 피해량 증가', baseCost: 18 },
-  { key: 'rapid', name: '새총 연사', icon: '⚡', description: '공격 속도 8% 증가', baseCost: 22 },
-  { key: 'speed', name: '가벼운 장화', icon: '👢', description: '효린이의 이동 속도 증가', baseCost: 16 },
+  { key: 'power', name: '무기 위력', icon: '🎯', description: '무기 공격 피해량 증가', baseCost: 18 },
+  { key: 'speed', name: '가벼운 장화', icon: '👢', description: '이동 속도가 추가로 증가해요', baseCost: 16 },
   { key: 'armor', name: '포근한 목도리', icon: '🧣', description: '피격 뒤 잠깐 더 안전해져요', baseCost: 20 },
   { key: 'vitality', name: '든든한 새참', icon: '🍲', description: '최대 체력과 현재 체력 회복', baseCost: 24 },
-  { key: 'fence', name: '도약 장화', icon: '🥾', description: '점프가 조금 더 높아져요', baseCost: 20 },
 ];
 
 export function upgradeCost(key: UpgradeKey, level: number): number {

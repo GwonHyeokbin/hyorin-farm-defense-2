@@ -1,5 +1,7 @@
-export type EnemyKind = 'mole' | 'rabbit' | 'crow' | 'boar' | 'kingBoar';
-export type AmmoType = 'bb' | 'steelBb' | 'stone' | 'blast' | 'lightning' | 'meteor';
+export type EnemyKind = 'mole' | 'rabbit' | 'crow' | 'boar' | 'bear' | 'tiger' | 'wolf' | 'kingBoar';
+export type WeaponType = 'slingshot' | 'bow' | 'crossbow' | 'pistol' | 'rifle';
+export type LegacyAmmoType = 'bb' | 'steelBb' | 'stone' | 'blast' | 'lightning' | 'meteor';
+export type AmmoType = WeaponType | LegacyAmmoType;
 export type GrowthStage = 1 | 2 | 3 | 4;
 export type PetType = 'nuni' | 'yangi' | 'maru';
 export type EnemyStatus = 'knockback' | 'groggy' | 'stun' | null;
@@ -77,6 +79,32 @@ export interface FarmPetState {
   facingY: number;
   attackCooldown: number;
   patrolIndex: number;
+  hp: number;
+  maxHp: number;
+  stunnedUntilWave: number;
+  damageCooldown: number;
+}
+
+export interface HazardPickupState {
+  id: number;
+  x: number;
+  y: number;
+  velocityX: number;
+  life: number;
+}
+
+export interface WeaponDefinition {
+  type: WeaponType;
+  name: string;
+  icon: string;
+  ammoName: string;
+  projectileSpeed: number;
+  shotsPerSecond: number;
+  roundsPerPurchase: number;
+  ammoCost: number;
+  weaponCost: number;
+  power: number;
+  description: string;
 }
 
 export interface CropState {
@@ -126,11 +154,19 @@ export interface GameState {
   lifeCompleteShown: boolean;
   ammo: AmmoType;
   ammoCounts: Record<AmmoType, number>;
+  ownedWeapons: WeaponType[];
   milkPickups: MilkPickupState[];
   nextMilkId: number;
   dadMessagePickups: DadMessagePickupState[];
   nextDadMessageId: number;
   dadMessageSpawnTimer: number;
+  rottenWatermelons: HazardPickupState[];
+  fakeNewsPapers: HazardPickupState[];
+  nextHazardId: number;
+  hazardSpawnTimer: number;
+  terrainSeed: number;
+  terrainRevision: number;
+  terrainSector: number;
   boulderUnlocked: boolean;
   pets: FarmPetState[];
   player: PlayerState;
@@ -157,7 +193,7 @@ export interface Controls {
 }
 
 export interface EngineEvent {
-  type: 'fire' | 'hit' | 'melee' | 'boulder' | 'level-up' | 'dad-message' | 'life-complete' | 'knockback' | 'groggy' | 'stun' | 'kill' | 'farm-hit' | 'player-hit' | 'wave-start' | 'wave-clear' | 'game-over' | 'milk' | 'special-attack' | 'jump' | 'life-lost';
+  type: 'fire' | 'hit' | 'melee' | 'boulder' | 'level-up' | 'dad-message' | 'life-complete' | 'knockback' | 'groggy' | 'stun' | 'kill' | 'farm-hit' | 'player-hit' | 'wave-start' | 'wave-clear' | 'game-over' | 'milk' | 'special-attack' | 'jump' | 'life-lost' | 'pet-damaged' | 'pet-stunned' | 'fake-news';
   text?: string;
   x?: number;
   y?: number;
