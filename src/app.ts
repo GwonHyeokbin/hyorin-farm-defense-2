@@ -628,10 +628,10 @@ export class GameApp {
     modal.innerHTML = `<section class="modal-card intermission-card" role="dialog" aria-modal="true" aria-labelledby="intermission-title">
       <div class="rest-stamp">쉼터</div><span class="modal-kicker">${state.wave}구간 통과</span><h2 id="intermission-title">잠깐 쉬어 가요</h2><p class="modal-copy">체력과 전투 상태가 회복됐어요. 다음 길에 나서기 전에 장비와 동료를 준비해요.</p>
       <div class="intermission-summary"><span>이번 구간 보상</span><b>+${12 + Math.min(20, state.wave * 2)} 🍅</b><span class="resource-total">보유 포인트 <strong>🍅 ${state.resources}</strong></span></div>
+      <div class="pet-shop"><div class="pet-shop-heading"><b>고양이와 츄르</b><small>츄르 한 개(${CHURU_PRICE} 포인트)로 체력 ${CHURU_HEAL} 회복 · 기절 해제</small></div><div class="pet-shop-grid">${petCards}</div></div>
       <div class="upgrade-grid">${cards}${boulderButton}${farmRepairButton}</div>
       <div class="pet-shop weapon-shop"><div class="pet-shop-heading"><b>무기 상점</b><small>무기를 사서 함께 보유하고, 숫자 키 1~5로 바꿔 들어요.</small></div><div class="upgrade-grid weapon-shop-grid">${weaponShopCards}</div></div>
       <div class="pet-shop ammo-shop"><div class="pet-shop-heading"><b>탄약 상점</b><small>보유한 무기의 탄약을 구매해요.</small></div><div class="upgrade-grid ammo-shop-grid">${ammoShopCards}</div></div>
-      <div class="pet-shop"><div class="pet-shop-heading"><b>고양이와 츄르</b><small>츄르 한 개(${CHURU_PRICE} 포인트)로 체력 ${CHURU_HEAL} 회복 · 기절 해제</small></div><div class="pet-shop-grid">${petCards}</div></div>
       <div class="intermission-bottom"><button class="primary-button" data-action="continue-wave">다음 구간으로 <span>→</span></button></div>
       <button class="text-button" data-action="export-quick">이어하기 코드 만들기</button>
     </section>`;
