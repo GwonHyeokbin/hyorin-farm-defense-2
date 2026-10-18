@@ -47,6 +47,8 @@ describe('platform movement and growth', () => {
     const state = createGameState(5);
     state.waveState.phaseTimer = 100;
     state.milkPickups = [];
+    state.player.stage = 4;
+    state.ammo = 'bb';
     state.player.x = PLATFORM_SURFACES[0].x + 50;
 
     const jumped = stepWorld(state, 0.05, { jump: true });
@@ -64,6 +66,8 @@ describe('platform movement and growth', () => {
   it('moves horizontally across the scrolling world without top-down movement', () => {
     const state = createGameState(6);
     state.waveState.phaseTimer = 100;
+    state.player.stage = 4;
+    state.ammo = 'bb';
     for (let tick = 0; tick < 12; tick += 1) stepWorld(state, 0.05, { right: true, down: true });
     expect(state.player.x).toBeGreaterThan(120);
     expect(state.player.y).toBe(WORLD.groundY);
