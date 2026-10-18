@@ -231,7 +231,7 @@ export function normalizeGameState(value: unknown): GameState | null {
   state.experience = finite(state.experience, 0, 100_000_000) ? state.experience : 0;
   state.experienceToNext = finite(state.experienceToNext, 1, 100_000_000) ? state.experienceToNext : state.level * 100;
   if (state.experience >= state.experienceToNext) state.experience = state.experienceToNext - 1;
-  state.lifeCompleteShown = state.lifeCompleteShown === true;
+  state.lifeCompleteShown = state.lifeCompleteShown === true && state.level >= 100;
   state.ownedWeapons = Array.isArray(state.ownedWeapons) ? [...new Set(state.ownedWeapons.filter(isWeaponType))] : ['slingshot'];
   if (!state.ownedWeapons.includes('slingshot')) state.ownedWeapons.unshift('slingshot');
   state.ammo = isWeaponType(state.ammo) && state.ownedWeapons.includes(state.ammo) ? state.ammo : 'slingshot';

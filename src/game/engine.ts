@@ -13,7 +13,7 @@ export const DAD_MESSAGE_TEXTS = [
   '괜찮아 아빠한테 기대',
   '고민있으면 아빠한테 말하렴',
 ] as const;
-export const LEVEL_100_MESSAGE = '효린이는 행복한 가정에서 환생하여 하고 싶은 일 마음껏 하며 원하는 모든 것을 이루고 살아가게 됩니다. 레벨은 1이 되지만 레벨업으로 오른 능력치는 유지됩니다. 게임은 계속 진행할 수 있습니다.';
+export const LEVEL_100_MESSAGE = '행복한 가정에서 환생하여 하고 싶은 것을 모두 하고 살아갑니다.';
 export const SEASONS = ['봄', '여름', '가을', '겨울'] as const;
 export type SeasonName = (typeof SEASONS)[number];
 export function seasonForWave(wave: number): SeasonName {
@@ -26,6 +26,7 @@ export const PLATFORM_SURFACES = [
   { x: 2670, y: 380, width: 196 },
 ] as const;
 const GROWTH_NAMES: Record<GrowthStage, string> = { 1: '아기 효린', 2: '어린이 효린', 3: '청소년 효린', 4: '성인 효린' };
+const PLAYER_STAGE_HEIGHTS: Record<GrowthStage, number> = { 1: 48, 2: 64, 3: 72, 4: 80 };
 const STARTING_MILK: MilkPickupState[] = [
   { id: 1, x: 250, y: WORLD.groundY - 23 },
   { id: 2, x: 422, y: 437 },
@@ -251,11 +252,7 @@ function increaseLevel(state: GameState, events: EngineEvent[]): void {
 }
 
 function announceLevel100(state: GameState, events: EngineEvent[]): void {
-  if (state.level < 100) return;
-  state.retainedLevelBonuses = Math.min(1_000_000_000, state.retainedLevelBonuses + state.level - 1);
-  state.level = 1;
-  state.experience = 0;
-  state.experienceToNext = 100;
+  if (state.level < 100 || state.lifeCompleteShown) return;
   state.lifeCompleteShown = true;
   events.push({ type: 'life-complete', text: LEVEL_100_MESSAGE });
 }
@@ -411,8 +408,7 @@ function updateEnemy(state: GameState, enemy: EnemyState, dt: number, events: En
     else enemy.y = WORLD.groundY - 20;
   } else if (enemy.attackCooldown <= 0) enemy.attackCooldown = enemy.kind === 'kingBoar' ? 1.15 : 1.4;
 
-  const stageHeights: Record<GrowthStage, number> = { 1: 48, 2: 64, 3: 72, 4: 80 };
-  const playerTop = state.player.y - stageHeights[state.player.stage];
+  const playerTop = state.player.y - PLAYER_STAGE_HEIGHTS[state.player.stage];
   const enemyTop = enemy.y - (enemy.kind === 'kingBoar' || enemy.kind === 'bear' ? 42 : enemy.kind === 'tiger' ? 34 : 22);
   const enemyBottom = enemy.y + 10;
   const horizontalOverlap = Math.abs(state.player.x - enemy.x) < (enemy.kind === 'kingBoar' || enemy.kind === 'bear' ? 42 : enemy.kind === 'tiger' ? 36 : 30);
@@ -671,6 +667,11 @@ export function stepWorld(state: GameState, rawDt: number, controls: Controls = 
     // A recovery guard prevents stale airborne saves or missed contacts from leaving Hyorin suspended.
     if (state.player.jumpTimer >= 1.35) state.player.velocityY = Math.max(360, state.player.velocityY);
     state.player.y += state.player.velocityY * dt;
+    const screenTopLimit = PLAYER_STAGE_HEIGHTS[state.player.stage] + 2;
+    if (state.player.y < screenTopLimit) {
+      state.player.y = screenTopLimit;
+      if (state.player.velocityY < 0) state.player.velocityY = 0;
+    }
     if (state.player.velocityY >= 0) {
       const landing = PLATFORM_SURFACES
         .filter((platform) => !controls.down && previousY <= platform.y && state.player.y >= platform.y && state.player.x + 15 >= platform.x && state.player.x - 15 <= platform.x + platform.width)
