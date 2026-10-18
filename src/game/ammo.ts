@@ -16,7 +16,7 @@ export const WEAPON_DEFINITIONS: WeaponDefinition[] = [
   { type: 'bow', name: '활', icon: '🏹', ammoName: '화살', projectileSpeed: 590, shotsPerSecond: 0.5, roundsPerPurchase: 12, ammoCost: 10, weaponCost: 34, power: 3, description: '2초당 1발 · 파워 3' },
   { type: 'crossbow', name: '크로스보우', icon: '🎯', ammoName: '볼트 화살', projectileSpeed: 760, shotsPerSecond: 1 / 3, roundsPerPurchase: 12, ammoCost: 12, weaponCost: 52, power: 5, description: '3초당 1발 · 파워 5' },
   { type: 'pistol', name: '권총', icon: '🔫', ammoName: '권총 탄약', projectileSpeed: 820, shotsPerSecond: 1, roundsPerPurchase: 12, ammoCost: 14, weaponCost: 72, power: 9, description: '초당 1발 · 파워 9' },
-  { type: 'rifle', name: '자동소총', icon: '🔫', ammoName: '소총 탄약', projectileSpeed: 880, shotsPerSecond: 3, roundsPerPurchase: 30, ammoCost: 18, weaponCost: 95, power: 11, description: '초당 3발 · 파워 11' },
+  { type: 'rifle', name: '자동소총', icon: '🔫', ammoName: '소총 탄약', projectileSpeed: 880, shotsPerSecond: 3, roundsPerPurchase: 30, ammoCost: 36, weaponCost: 95, power: 11, description: '초당 3발 · 파워 11 · 탄약값 2배' },
 ];
 
 // Kept only to read older save codes. These one-off ammo types are no longer
@@ -40,11 +40,7 @@ const LEGACY_CAPACITIES: Record<LegacyAmmoType, number> = {
 };
 
 export const AMMO_CAPACITIES: Record<AmmoType, number> = {
-  slingshot: 9_999,
-  bow: 9_999,
-  crossbow: 9_999,
-  pistol: 9_999,
-  rifle: 9_999,
+  ...Object.fromEntries(WEAPON_DEFINITIONS.map((weapon) => [weapon.type, weapon.roundsPerPurchase])) as Record<WeaponType, number>,
   ...LEGACY_CAPACITIES,
 };
 
@@ -91,7 +87,7 @@ export function purchaseWeapon(state: Pick<GameState, 'resources' | 'ownedWeapon
 
 export function refillAmmo(state: Pick<GameState, 'resources' | 'ammoCounts' | 'ammo' | 'ownedWeapons'>, type: WeaponType): boolean {
   const weapon = getWeaponDefinition(type);
-  if (!state.ownedWeapons.includes(type) || state.resources < weapon.ammoCost) return false;
+  if (!state.ownedWeapons.includes(type) || state.ammoCounts[type] >= AMMO_CAPACITIES[type] || state.resources < weapon.ammoCost) return false;
   state.resources -= weapon.ammoCost;
   state.ammoCounts[type] = Math.min(AMMO_CAPACITIES[type], state.ammoCounts[type] + weapon.roundsPerPurchase);
   state.ammo = type;

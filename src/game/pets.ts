@@ -1,4 +1,5 @@
 import type { FarmPetState, GameState, PetType } from './types';
+import { levelGrowthMultiplier } from './progression';
 
 export interface PetDefinition {
   type: PetType;
@@ -42,8 +43,9 @@ export function getPetDefinition(type: PetType): PetDefinition {
   return PET_DEFINITIONS.find((pet) => pet.type === type) ?? PET_DEFINITIONS[0];
 }
 
-function newPet(type: PetType, x: number, y: number): FarmPetState {
-  return { type, x, y, facingX: 1, facingY: 0, attackCooldown: 0.4, patrolIndex: 0, hp: PET_MAX_HP, maxHp: PET_MAX_HP, stunnedUntilWave: 0, damageCooldown: 0 };
+function newPet(type: PetType, x: number, y: number, healthMultiplier: number): FarmPetState {
+  const maxHp = PET_MAX_HP * healthMultiplier;
+  return { type, x, y, facingX: 1, facingY: 0, attackCooldown: 0.4, patrolIndex: 0, hp: maxHp, maxHp, stunnedUntilWave: 0, damageCooldown: 0 };
 }
 
 export function purchasePet(state: GameState, type: PetType): boolean {
@@ -60,7 +62,7 @@ export function purchasePet(state: GameState, type: PetType): boolean {
   state.resources -= definition.price;
   const x = Math.max(28, Math.min(3044, state.player.x + offset.x));
   const y = Math.max(0, Math.min(560, state.player.y + offset.y));
-  state.pets.push(newPet(type, x, y));
+  state.pets.push(newPet(type, x, y, levelGrowthMultiplier(state)));
   return true;
 }
 

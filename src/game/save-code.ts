@@ -3,6 +3,7 @@ import type { GameState } from './types';
 import { isAmmoType, isWeaponType, normalizeAmmoCounts } from './ammo';
 import { isPetType, PET_MAX_HP } from './pets';
 import { DAD_MESSAGE_TEXTS, WORLD } from './engine';
+import { levelGrowthMultiplier } from './progression';
 
 const CODE_PREFIX = 'HPA1';
 const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
@@ -121,6 +122,7 @@ export function isValidGameState(value: unknown): value is GameState {
   if (value.player.jumpTimer !== undefined && !finite(value.player.jumpTimer, 0, 2)) return false;
   if (value.player.jumpCooldown !== undefined && !finite(value.player.jumpCooldown, 0, 10)) return false;
   if (value.level !== undefined && (!finite(value.level, 1, 100_000) || !Number.isInteger(value.level))) return false;
+  if (value.retainedLevelBonuses !== undefined && (!finite(value.retainedLevelBonuses, 0, 1_000_000_000) || !Number.isInteger(value.retainedLevelBonuses))) return false;
   if (value.experience !== undefined && !finite(value.experience, 0, 100_000_000)) return false;
   if (value.experienceToNext !== undefined && !finite(value.experienceToNext, 1, 100_000_000)) return false;
   if (value.lifeCompleteShown !== undefined && typeof value.lifeCompleteShown !== 'boolean') return false;
@@ -223,6 +225,8 @@ export function normalizeGameState(value: unknown): GameState | null {
   const legacy = !('level' in value) && !('ammo' in value);
   const state = structuredClone(value) as GameState;
   state.level = Number.isInteger(state.level) && state.level >= 1 ? state.level : 1;
+  const hasRetainedGrowth = finite(state.retainedLevelBonuses, 0, 1_000_000_000) && Number.isInteger(state.retainedLevelBonuses);
+  state.retainedLevelBonuses = hasRetainedGrowth ? state.retainedLevelBonuses : 0;
   state.experience = finite(state.experience, 0, 100_000_000) ? state.experience : 0;
   state.experienceToNext = finite(state.experienceToNext, 1, 100_000_000) ? state.experienceToNext : state.level * 100;
   if (state.experience >= state.experienceToNext) state.experience = state.experienceToNext - 1;
@@ -258,6 +262,14 @@ export function normalizeGameState(value: unknown): GameState | null {
     stunnedUntilWave: finite(pet.stunnedUntilWave, 0, 100_000) ? Math.floor(pet.stunnedUntilWave) : 0,
     damageCooldown: finite(pet.damageCooldown, 0, 100) ? pet.damageCooldown : 0,
   }));
+  if (!hasRetainedGrowth && state.level > 1) {
+    const multiplier = levelGrowthMultiplier(state);
+    for (const pet of state.pets) {
+      const healthRatio = pet.maxHp > 0 ? pet.hp / pet.maxHp : 1;
+      pet.maxHp = PET_MAX_HP * multiplier;
+      pet.hp = pet.maxHp * healthRatio;
+    }
+  }
   state.player.meleeCooldown = finite(state.player.meleeCooldown, 0, 100) ? state.player.meleeCooldown : 0;
   state.player.boulderCooldown = finite(state.player.boulderCooldown, 0, 100) ? state.player.boulderCooldown : 0;
   state.player.stage = [1, 2, 3, 4].includes(Number(state.player.stage)) ? Number(state.player.stage) as GameState['player']['stage'] : 2;

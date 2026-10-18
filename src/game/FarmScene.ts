@@ -145,6 +145,7 @@ export class FarmScene extends Phaser.Scene {
     this.clearWorldSprites();
     this.state = snapshot ? structuredClone(snapshot) : createGameState();
     this.state.ammoCounts = normalizeAmmoCounts(this.state.ammoCounts);
+    this.state.retainedLevelBonuses ??= 0;
     this.state.ownedWeapons ??= ['slingshot'];
     if (!this.state.ownedWeapons.includes('slingshot')) this.state.ownedWeapons.unshift('slingshot');
     this.state.ammo = isWeaponType(this.state.ammo) && this.state.ownedWeapons.includes(this.state.ammo) ? this.state.ammo : 'slingshot';

@@ -1,6 +1,7 @@
 import type { Controls, EnemyKind, EnemyState, EngineEvent, GameState, GrowthStage, MilkPickupState } from './types';
 import { createAmmoCounts, getAmmoDefinition, getWeaponDefinition, isLegacyAmmoType, isWeaponType, WEAPON_DEFINITIONS } from './ammo';
-import { FAKE_NEWS_FRIENDLY_FIRE_DAMAGE, getPetDefinition } from './pets';
+import { FAKE_NEWS_FRIENDLY_FIRE_DAMAGE, getPetDefinition, PET_MAX_HP } from './pets';
+import { levelGrowthMultiplier, retainedLevelSteps } from './progression';
 
 export const WORLD = { width: 3072, height: 640, groundY: 560 } as const;
 export const DAD_MESSAGE_TEXTS = [
@@ -12,7 +13,7 @@ export const DAD_MESSAGE_TEXTS = [
   '괜찮아 아빠한테 기대',
   '고민있으면 아빠한테 말하렴',
 ] as const;
-export const LEVEL_100_MESSAGE = '효린이는 행복한 가정에서 환생하여 하고 싶은 일 마음껏 하며 원하는 모든 것을 이루고 살아가게 됩니다. 게임은 계속 진행할 수 있습니다.';
+export const LEVEL_100_MESSAGE = '효린이는 행복한 가정에서 환생하여 하고 싶은 일 마음껏 하며 원하는 모든 것을 이루고 살아가게 됩니다. 레벨은 1이 되지만 레벨업으로 오른 능력치는 유지됩니다. 게임은 계속 진행할 수 있습니다.';
 export const SEASONS = ['봄', '여름', '가을', '겨울'] as const;
 export type SeasonName = (typeof SEASONS)[number];
 export function seasonForWave(wave: number): SeasonName {
@@ -64,6 +65,7 @@ export function createGameState(seed = Date.now() >>> 0): GameState {
     resources: 20,
     elapsed: 0,
     level: 1,
+    retainedLevelBonuses: 0,
     experience: 0,
     experienceToNext: 100,
     lifeCompleteShown: false,
@@ -227,15 +229,33 @@ function increaseExperience(state: GameState, amount: number, events: EngineEven
   state.experience += amount;
   while (state.experience >= state.experienceToNext) {
     state.experience -= state.experienceToNext;
-    state.level += 1;
-    state.experienceToNext = state.level * 100;
-    events.push({ type: 'level-up', text: `레벨 ${state.level}! 이동 속도와 점프 높이 +1%` });
-    announceLevel100(state, events);
+    increaseLevel(state, events);
   }
 }
 
+function growPetsOnLevelUp(state: GameState): void {
+  const hpPerLevel = PET_MAX_HP * 0.01;
+  for (const pet of state.pets) {
+    pet.maxHp += hpPerLevel;
+    if (pet.hp > 0) pet.hp = Math.min(pet.maxHp, pet.hp + hpPerLevel);
+  }
+}
+
+function increaseLevel(state: GameState, events: EngineEvent[]): void {
+  state.level += 1;
+  state.experienceToNext = state.level * 100;
+  growPetsOnLevelUp(state);
+  const totalGrowth = retainedLevelSteps(state);
+  events.push({ type: 'level-up', text: `레벨 ${state.level}! 이동 속도·점프 높이·고양이 공격력·체력 +1% (누적 ${totalGrowth}%)` });
+  announceLevel100(state, events);
+}
+
 function announceLevel100(state: GameState, events: EngineEvent[]): void {
-  if (state.level < 100 || state.lifeCompleteShown) return;
+  if (state.level < 100) return;
+  state.retainedLevelBonuses = Math.min(1_000_000_000, state.retainedLevelBonuses + state.level - 1);
+  state.level = 1;
+  state.experience = 0;
+  state.experienceToNext = 100;
   state.lifeCompleteShown = true;
   events.push({ type: 'life-complete', text: LEVEL_100_MESSAGE });
 }
@@ -279,10 +299,8 @@ function updateDadMessages(state: GameState, dt: number, events: EngineEvent[]):
     const touchesMessage = Math.abs(pickup.x - state.player.x) <= 158
       && Math.abs(pickup.y - playerCenterY) <= 74;
     if (touchesMessage) {
-      state.level += 1;
-      state.experienceToNext = state.level * 100;
+      increaseLevel(state, events);
       events.push({ type: 'dad-message', text: DAD_MESSAGE_TEXTS[pickup.phraseIndex] });
-      announceLevel100(state, events);
       continue;
     }
     if (pickup.life > 0) remaining.push(pickup);
@@ -471,7 +489,7 @@ function updatePets(state: GameState, dt: number, events: EngineEvent[]): void {
       pet.facingY = dy / length;
       if (pet.attackCooldown <= 0) {
         pet.attackCooldown = definition.attackCooldown;
-        damageEnemy(state, target.enemy, definition.damage * (1 + state.upgrades.power * 0.06), events);
+        damageEnemy(state, target.enemy, definition.damage * (1 + state.upgrades.power * 0.06) * levelGrowthMultiplier(state), events);
       }
       continue;
     }
@@ -609,8 +627,9 @@ export function stepWorld(state: GameState, rawDt: number, controls: Controls = 
   state.player.boulderCooldown = Math.max(0, state.player.boulderCooldown - dt);
 
   const vx = Number(Boolean(controls.right)) - Number(Boolean(controls.left));
-  const levelBonus = 1 + Math.max(0, state.level - 1) * 0.01;
-  const moveSpeed = (220 + state.upgrades.speed * 15) * levelBonus;
+  const levelBonus = levelGrowthMultiplier(state);
+  const rifleEquipped = state.ammo === 'rifle';
+  const moveSpeed = (220 + state.upgrades.speed * 15) * levelBonus * (rifleEquipped ? 0.5 : 1);
   const previousX = state.player.x;
   const previousY = state.player.y;
   state.player.x = PhaserMathClamp(previousX + vx * moveSpeed * dt, 28, WORLD.width - 28);
@@ -630,7 +649,7 @@ export function stepWorld(state: GameState, rawDt: number, controls: Controls = 
     state.player.velocityY = 180;
     state.player.jumpTimer = 0;
   } else if (controls.jump && state.player.grounded && state.player.jumpCooldown <= 0) {
-    state.player.velocityY = -620 * levelBonus;
+    state.player.velocityY = -620 * levelBonus * (rifleEquipped ? Math.SQRT1_2 : 1);
     state.player.grounded = false;
     state.player.jumpTimer = 0;
     state.player.jumpCooldown = 0.18;

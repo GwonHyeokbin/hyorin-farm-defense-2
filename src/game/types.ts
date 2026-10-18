@@ -149,6 +149,7 @@ export interface GameState {
   resources: number;
   elapsed: number;
   level: number;
+  retainedLevelBonuses: number;
   experience: number;
   experienceToNext: number;
   lifeCompleteShown: boolean;

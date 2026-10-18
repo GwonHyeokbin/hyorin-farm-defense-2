@@ -7,7 +7,8 @@ import { AudioKit } from './game/AudioKit';
 import { clearAutosave, clearRecords, getSettings, highestScore, loadAutosave, loadRecords, saveAutosave, saveRecord, setSettings } from './game/storage';
 import type { GameSettings } from './game/storage';
 import { BOULDER_UPGRADE_COST, UPGRADE_DEFINITIONS, upgradeCost } from './game/upgrades';
-import { isWeaponType, WEAPON_DEFINITIONS } from './game/ammo';
+import { AMMO_CAPACITIES, isWeaponType, WEAPON_DEFINITIONS } from './game/ammo';
+import { retainedLevelSteps } from './game/progression';
 import { CHURU_HEAL, CHURU_PRICE, PET_DEFINITIONS, isPetType } from './game/pets';
 import { requestLandscapeLock, shouldCollapseLandscapeAmmoPanel, shouldUseTouchLayout, toggleFullscreen } from './game/mobile-layout';
 import type { EngineEvent, GameState, PetType, UpgradeKey, WeaponType } from './game/types';
@@ -454,7 +455,8 @@ export class GameApp {
     this.setText('#hud-best', Math.max(highestScore(), state.score).toLocaleString());
     this.setText('#hud-wave', state.wave === 0 ? '봄 · 준비' : `${seasonForWave(state.wave)} · 구간 ${String(state.wave).padStart(2, '0')}`);
     this.setText('#hud-resources', `🍅 ${state.resources}`);
-    this.setText('#player-level-label', `Lv.${state.level} · 이동/점프 +${state.level - 1}% · EXP ${state.experience}/${state.experienceToNext}`);
+    const growthPercent = retainedLevelSteps(state);
+    this.setText('#player-level-label', `Lv.${state.level} · 이동/점프/고양이 능력 +${growthPercent}%${state.ammo === 'rifle' ? ' · 자동소총 이동/점프 높이 50%' : ''} · EXP ${state.experience}/${state.experienceToNext}`);
     const stageName = ['', '아기 효린', '어린이 효린', '청소년 효린', '성인 효린'][state.player.stage];
     this.setText('#player-stage-label', `${state.player.stage}단계 · ${stageName}`);
     this.setText('#player-lives-label', `❤️ ${state.player.lives}`);
@@ -601,9 +603,10 @@ export class GameApp {
     }).join('');
     const ammoShopCards = WEAPON_DEFINITIONS.filter((weapon) => state.ownedWeapons.includes(weapon.type)).map((weapon) => {
       const count = state.ammoCounts[weapon.type];
-      const disabled = state.resources < weapon.ammoCost;
+      const full = count >= AMMO_CAPACITIES[weapon.type];
+      const disabled = full || state.resources < weapon.ammoCost;
       return `<button class="upgrade-card ammo-refill-card" data-weapon-refill="${weapon.type}" ${disabled ? 'disabled' : ''}>
-        <span class="upgrade-icon">${weapon.icon}</span><span class="upgrade-copy"><b>${weapon.ammoName}<small>${count}발 보유</small></b><small>구매하면 ${weapon.roundsPerPurchase}발 충전</small></span><span class="upgrade-price">🍅 ${weapon.ammoCost}</span>
+        <span class="upgrade-icon">${weapon.icon}</span><span class="upgrade-copy"><b>${weapon.ammoName}<small>${count}/${AMMO_CAPACITIES[weapon.type]}발 보유</small></b><small>${full ? '탄약이 가득 찼어요' : `구매하면 최대 ${AMMO_CAPACITIES[weapon.type]}발까지 충전`}</small></span><span class="upgrade-price">🍅 ${weapon.ammoCost}</span>
       </button>`;
     }).join('');
     const modal = this.modalRoot();
