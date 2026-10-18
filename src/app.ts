@@ -456,7 +456,9 @@ export class GameApp {
     this.setText('#hud-wave', state.wave === 0 ? '봄 · 준비' : `${seasonForWave(state.wave)} · 구간 ${String(state.wave).padStart(2, '0')}`);
     this.setText('#hud-resources', `🍅 ${state.resources}`);
     const growthPercent = retainedLevelSteps(state);
-    this.setText('#player-level-label', `Lv.${state.level} · 이동/점프/고양이 능력 +${growthPercent}%${state.ammo === 'rifle' ? ' · 자동소총 이동/점프 높이 50%' : ''} · EXP ${state.experience}/${state.experienceToNext}`);
+    const equippedWeapon = isWeaponType(state.ammo) ? WEAPON_DEFINITIONS.find((weapon) => weapon.type === state.ammo) : undefined;
+    const mobilityPenalty = equippedWeapon ? Math.round(equippedWeapon.mobilityPenalty * 100) : 0;
+    this.setText('#player-level-label', `Lv.${state.level} · 이동/점프/고양이 능력 +${growthPercent}%${mobilityPenalty ? ` · ${equippedWeapon?.name} 이동/점프 -${mobilityPenalty}%` : ''} · EXP ${state.experience}/${state.experienceToNext}`);
     const stageName = ['', '아기 효린', '어린이 효린', '청소년 효린', '성인 효린'][state.player.stage];
     this.setText('#player-stage-label', `${state.player.stage}단계 · ${stageName}`);
     this.setText('#player-lives-label', `❤️ ${state.player.lives}`);

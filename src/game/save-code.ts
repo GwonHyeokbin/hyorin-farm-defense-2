@@ -187,6 +187,7 @@ export function isValidGameState(value: unknown): value is GameState {
     if (!finite(projectile.vx, -5000, 5000) || !finite(projectile.vy, -5000, 5000) || !finite(projectile.damage, 0, 100_000) || !finite(projectile.life, 0, 100)) return false;
     if (projectile.ammo !== undefined && !isAmmoType(projectile.ammo)) return false;
     if (projectile.targetId !== undefined && (!finite(projectile.targetId, 1, 10_000_000) || !Number.isInteger(projectile.targetId))) return false;
+    if (projectile.hitEnemyIds !== undefined && (!Array.isArray(projectile.hitEnemyIds) || projectile.hitEnemyIds.length > 80 || projectile.hitEnemyIds.some((id) => !finite(id, 1, 10_000_000) || !Number.isInteger(id)))) return false;
   }
   if (value.pets !== undefined) {
     if (!Array.isArray(value.pets) || value.pets.length > 3) return false;

@@ -69,6 +69,7 @@ export interface ProjectileState {
   life: number;
   ammo?: AmmoType;
   targetId?: number;
+  hitEnemyIds?: number[];
 }
 
 export interface FarmPetState {
@@ -104,6 +105,7 @@ export interface WeaponDefinition {
   ammoCost: number;
   weaponCost: number;
   power: number;
+  mobilityPenalty: number;
   description: string;
 }
 

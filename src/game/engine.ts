@@ -628,8 +628,9 @@ export function stepWorld(state: GameState, rawDt: number, controls: Controls = 
 
   const vx = Number(Boolean(controls.right)) - Number(Boolean(controls.left));
   const levelBonus = levelGrowthMultiplier(state);
-  const rifleEquipped = state.ammo === 'rifle';
-  const moveSpeed = (220 + state.upgrades.speed * 15) * levelBonus * (rifleEquipped ? 0.5 : 1);
+  const equippedWeapon = isWeaponType(state.ammo) ? getWeaponDefinition(state.ammo) : null;
+  const mobilityMultiplier = 1 - (equippedWeapon?.mobilityPenalty ?? 0);
+  const moveSpeed = (220 + state.upgrades.speed * 15) * levelBonus * mobilityMultiplier;
   const previousX = state.player.x;
   const previousY = state.player.y;
   state.player.x = PhaserMathClamp(previousX + vx * moveSpeed * dt, 28, WORLD.width - 28);
@@ -649,7 +650,7 @@ export function stepWorld(state: GameState, rawDt: number, controls: Controls = 
     state.player.velocityY = 180;
     state.player.jumpTimer = 0;
   } else if (controls.jump && state.player.grounded && state.player.jumpCooldown <= 0) {
-    state.player.velocityY = -620 * levelBonus * (rifleEquipped ? Math.SQRT1_2 : 1);
+    state.player.velocityY = -620 * levelBonus * Math.sqrt(mobilityMultiplier);
     state.player.grounded = false;
     state.player.jumpTimer = 0;
     state.player.jumpCooldown = 0.18;
@@ -722,6 +723,7 @@ export function stepWorld(state: GameState, rawDt: number, controls: Controls = 
     let hit = false;
     for (const enemy of state.enemies) {
       if (enemy.hp <= 0) continue;
+      if (projectile.ammo === 'crossbow' && projectile.hitEnemyIds?.includes(enemy.id)) continue;
       if (Math.hypot(enemy.x - projectile.x, enemy.y - projectile.y) > (enemy.kind === 'kingBoar' ? 29 : 21)) continue;
       if (projectile.ammo === 'stone') {
         const awayX = enemy.x - projectile.x;
@@ -760,7 +762,13 @@ export function stepWorld(state: GameState, rawDt: number, controls: Controls = 
         }
         chained.forEach((candidate, index) => damageEnemy(state, candidate, projectile.damage * (index === 0 ? 1 : 0.68 ** index), events));
         events.push({ type: 'special-attack', text: legacyType, x: projectile.x, y: projectile.y });
-      } else damageEnemy(state, enemy, projectile.damage, events);
+      } else {
+        damageEnemy(state, enemy, projectile.damage, events);
+        if (projectile.ammo === 'crossbow') {
+          (projectile.hitEnemyIds ??= []).push(enemy.id);
+          continue;
+        }
+      }
       hit = true;
       break;
     }

@@ -12,11 +12,11 @@ export interface AmmoDefinition {
 }
 
 export const WEAPON_DEFINITIONS: WeaponDefinition[] = [
-  { type: 'slingshot', name: '새총', icon: '🪃', ammoName: 'BB탄', projectileSpeed: 670, shotsPerSecond: 1, roundsPerPurchase: 30, ammoCost: 6, weaponCost: 0, power: 1, description: '초당 1발 · 파워 1' },
-  { type: 'bow', name: '활', icon: '🏹', ammoName: '화살', projectileSpeed: 590, shotsPerSecond: 0.5, roundsPerPurchase: 12, ammoCost: 10, weaponCost: 34, power: 3, description: '2초당 1발 · 파워 3' },
-  { type: 'crossbow', name: '크로스보우', icon: '🎯', ammoName: '볼트 화살', projectileSpeed: 760, shotsPerSecond: 1 / 3, roundsPerPurchase: 12, ammoCost: 12, weaponCost: 52, power: 5, description: '3초당 1발 · 파워 5' },
-  { type: 'pistol', name: '권총', icon: '🔫', ammoName: '권총 탄약', projectileSpeed: 820, shotsPerSecond: 1, roundsPerPurchase: 12, ammoCost: 14, weaponCost: 72, power: 9, description: '초당 1발 · 파워 9' },
-  { type: 'rifle', name: '자동소총', icon: '🔫', ammoName: '소총 탄약', projectileSpeed: 880, shotsPerSecond: 3, roundsPerPurchase: 30, ammoCost: 36, weaponCost: 95, power: 11, description: '초당 3발 · 파워 11 · 탄약값 2배' },
+  { type: 'slingshot', name: '새총', icon: '🪃', ammoName: 'BB탄', projectileSpeed: 670, shotsPerSecond: 1, roundsPerPurchase: 30, ammoCost: 6, weaponCost: 0, power: 1, mobilityPenalty: 0.1, description: '초당 1발 · 파워 1 · 이동속도/점프 높이 -10%' },
+  { type: 'bow', name: '활', icon: '🏹', ammoName: '화살', projectileSpeed: 590, shotsPerSecond: 0.5, roundsPerPurchase: 12, ammoCost: 10, weaponCost: 34, power: 3, mobilityPenalty: 0.2, description: '2초당 1발 · 파워 3 · 이동속도/점프 높이 -20%' },
+  { type: 'crossbow', name: '크로스보우', icon: '🎯', ammoName: '볼트 화살', projectileSpeed: 760, shotsPerSecond: 1 / 3, roundsPerPurchase: 12, ammoCost: 12, weaponCost: 52, power: 5, mobilityPenalty: 0.3, description: '3초당 1발 · 파워 5 · 관통 · 이동속도/점프 높이 -30%' },
+  { type: 'pistol', name: '권총', icon: '🔫', ammoName: '권총 탄약', projectileSpeed: 820, shotsPerSecond: 1, roundsPerPurchase: 12, ammoCost: 14, weaponCost: 72, power: 9, mobilityPenalty: 0.1, description: '초당 1발 · 파워 9 · 이동속도/점프 높이 -10%' },
+  { type: 'rifle', name: '자동소총', icon: '🔫', ammoName: '소총 탄약', projectileSpeed: 880, shotsPerSecond: 3, roundsPerPurchase: 30, ammoCost: 36, weaponCost: 95, power: 11, mobilityPenalty: 0.5, description: '초당 3발 · 파워 11 · 이동속도/점프 높이 -50% · 탄약값 2배' },
 ];
 
 // Kept only to read older save codes. These one-off ammo types are no longer
