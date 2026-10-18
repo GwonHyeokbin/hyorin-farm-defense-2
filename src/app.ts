@@ -529,6 +529,7 @@ export class GameApp {
     if (event.type === 'special-attack') this.audio.play('special-attack');
     if (event.type === 'milk' || event.type === 'jump' || event.type === 'life-lost') this.audio.play(event.type);
     if (event.type === 'player-hit' && event.text) this.showToast(event.text);
+    if (event.type === 'farm-hit' && event.text) this.showToast(event.text, 2800);
     if (event.type === 'boulder') this.showToast('바위 강타! 주변 동물 친구들이 잠깐 멈췄어요.');
     if (event.type === 'pet-damaged' || event.type === 'pet-stunned' || event.type === 'fake-news') this.showToast(event.text ?? '고양이 동료에게 일이 생겼어요.');
     if (event.type === 'wave-start') this.showToast(event.text ?? `${state.wave}구간 모험 시작!`);
@@ -586,6 +587,12 @@ export class GameApp {
     const boulderButton = `<button class="upgrade-card boulder-upgrade-card" data-action="buy-boulder" ${state.boulderUnlocked || state.resources < BOULDER_UPGRADE_COST ? 'disabled' : ''}>
       <span class="upgrade-icon">🪨</span><span class="upgrade-copy"><b>바위 강타 ${state.boulderUnlocked ? '<small>구매 완료</small>' : ''}</b><small>가까운 적 최대 4마리를 기절시켜요. 구매 후 자동으로 발동합니다.</small></span><span class="upgrade-price">${state.boulderUnlocked ? '보유 중' : `🍅 ${BOULDER_UPGRADE_COST} 포인트`}</span>
     </button>`;
+    const farmStructuresDamaged = state.farm.crops.some((crop) => crop.hp < crop.maxHp)
+      || Object.values(state.farm.facilities).some((facility) => facility.hp < facility.maxHp);
+    const farmNeedsRepair = state.farm.health < state.farm.maxHealth || farmStructuresDamaged;
+    const farmRepairButton = `<button class="upgrade-card" data-action="repair" ${!farmNeedsRepair || state.resources < 20 ? 'disabled' : ''}>
+      <span class="upgrade-icon">🛠️</span><span class="upgrade-copy"><b>농장 수리<small>체력 ${Math.ceil(state.farm.health)}/${state.farm.maxHealth}</small></b><small>밭과 농장 시설을 함께 회복해요.</small></span><span class="upgrade-price">🍅 20 포인트</span>
+    </button>`;
     const petCards = PET_DEFINITIONS.map((pet) => {
       const companion = state.pets.find((item) => item.type === pet.type);
       const disabled = state.resources < pet.price;
@@ -621,7 +628,7 @@ export class GameApp {
     modal.innerHTML = `<section class="modal-card intermission-card" role="dialog" aria-modal="true" aria-labelledby="intermission-title">
       <div class="rest-stamp">쉼터</div><span class="modal-kicker">${state.wave}구간 통과</span><h2 id="intermission-title">잠깐 쉬어 가요</h2><p class="modal-copy">체력과 전투 상태가 회복됐어요. 다음 길에 나서기 전에 장비와 동료를 준비해요.</p>
       <div class="intermission-summary"><span>이번 구간 보상</span><b>+${12 + Math.min(20, state.wave * 2)} 🍅</b><span class="resource-total">보유 포인트 <strong>🍅 ${state.resources}</strong></span></div>
-      <div class="upgrade-grid">${cards}${boulderButton}</div>
+      <div class="upgrade-grid">${cards}${boulderButton}${farmRepairButton}</div>
       <div class="pet-shop weapon-shop"><div class="pet-shop-heading"><b>무기 상점</b><small>무기를 사서 함께 보유하고, 숫자 키 1~5로 바꿔 들어요.</small></div><div class="upgrade-grid weapon-shop-grid">${weaponShopCards}</div></div>
       <div class="pet-shop ammo-shop"><div class="pet-shop-heading"><b>탄약 상점</b><small>보유한 무기의 탄약을 구매해요.</small></div><div class="upgrade-grid ammo-shop-grid">${ammoShopCards}</div></div>
       <div class="pet-shop"><div class="pet-shop-heading"><b>고양이와 츄르</b><small>츄르 한 개(${CHURU_PRICE} 포인트)로 체력 ${CHURU_HEAL} 회복 · 기절 해제</small></div><div class="pet-shop-grid">${petCards}</div></div>
@@ -801,7 +808,7 @@ export class GameApp {
 
   private showInstructions(): void {
     this.modalReturn = this.currentView;
-    this.showModal(`<section class="modal-card instructions-card" role="dialog" aria-modal="true" aria-labelledby="instructions-title"><span class="modal-kicker">플레이 안내</span><h2 id="instructions-title">효린 농장 디펜스2</h2><div class="instruction-list"><div><span>01</span><b>달리기·점프·무기</b><p>PC에서는 A/D 또는 방향키로 이동, Space 또는 위쪽 방향키로 점프, J/F나 마우스 클릭으로 공격해요. 아래 방향키 또는 S를 누른 채 Space를 누르면 플랫폼 아래로 내려갈 수 있어요. 공격은 현재 바라보는 방향으로 나가요. 동물 위에서 내려오면 밟아 물리칠 수도 있어요.</p></div><div><span>02</span><b>성장과 초코우유</b><p>2단계 어린이 효린으로 시작해요. 초코우유를 모으면 청소년, 성인으로 자라고, 맞으면 한 단계 어려져요. 아기 상태에서 다시 맞으면 목숨을 잃고 출발점에서 다시 시작해요. 레벨이 오르면 이동 속도와 점프 높이가 각각 1%씩 올라요.</p></div><div><span>03</span><b>다섯 무기와 탄약</b><p>새총·활·크로스보우·권총·자동소총을 쉼터에서 구매하고 함께 가질 수 있어요. 각각 BB탄 30발, 화살 12개, 볼트 화살 12개, 권총 탄약 12발, 소총 탄약 30발씩 충전해요. 탄약이 떨어지면 다른 무기로 자동 전환되고, 쉼터 상점에서 다시 구매할 수 있어요. PC에서는 1~5 키로 무기를 선택해요.</p></div><div><span>04</span><b>고양이와 계절</b><p>두더지·토끼·까마귀·멧돼지·곰·늑대와 호랑이가 출현해요. 호랑이는 가장 강하며 다섯 구간마다 마지막에 나타나요. 고양이는 몬스터에게 다치거나 썩은 수박에 닿으면 체력이 줄거나 한 구간 동안 기절할 수 있어요. 가짜뉴스 종이는 다른 고양이를 한 번 공격하게 해요. 쉼터에서 츄르를 사서 체력을 회복시키고 계절은 세 구간마다 바뀌어요.</p></div><div><span>05</span><b>모바일·저장</b><p>스마트폰에서는 좌우·점프·공격을 동시에 누를 수 있어요. 일시정지에서 이어하기 코드를 만들 수 있고 진행은 이 브라우저에 자동 저장돼요.</p></div></div><div class="modal-actions"><button class="primary-button" data-action="close-modal">알겠어요</button></div></section>`);
+    this.showModal(`<section class="modal-card instructions-card" role="dialog" aria-modal="true" aria-labelledby="instructions-title"><span class="modal-kicker">플레이 안내</span><h2 id="instructions-title">효린 농장 디펜스2</h2><div class="instruction-list"><div><span>01</span><b>달리기·점프·무기</b><p>PC에서는 A/D 또는 방향키로 이동, Space 또는 위쪽 방향키로 점프, J/F나 마우스 클릭으로 공격해요. 아래 방향키 또는 S를 누른 채 Space를 누르면 플랫폼 아래로 내려갈 수 있어요. 공격은 현재 바라보는 방향으로 나가요. 동물 위에서 내려오면 밟아 물리칠 수도 있어요.</p></div><div><span>02</span><b>성장과 초코우유</b><p>2단계 어린이 효린으로 시작해요. 초코우유를 모으면 청소년, 성인으로 자라고, 맞으면 한 단계 어려져요. 아기 상태에서 다시 맞으면 목숨을 잃고 출발점에서 다시 시작해요. 레벨이 오르면 이동 속도와 점프 높이가 각각 1%씩 올라요.</p></div><div><span>03</span><b>다섯 무기와 탄약</b><p>새총·활·크로스보우·권총·자동소총을 쉼터에서 구매하고 함께 가질 수 있어요. 각각 BB탄 30발, 화살 12개, 볼트 화살 12개, 권총 탄약 12발, 소총 탄약 30발씩 충전해요. 탄약이 떨어지면 다른 무기로 자동 전환되고, 쉼터 상점에서 다시 구매할 수 있어요. PC에서는 1~5 키로 무기를 선택해요.</p></div><div><span>04</span><b>고양이와 계절</b><p>두더지·토끼·까마귀·멧돼지·곰·늑대·여우·너구리가 밭과 닭장, 헛간을 공격해요. 호랑이는 한 번에 한 마리만 나오며 다섯 구간마다 마지막에 등장하는 가장 강한 보스예요. 구조물이 부서지면 농장 체력이 줄어요. 고양이는 몬스터에게 다치거나 썩은 수박에 닿으면 체력이 줄거나 한 구간 동안 기절할 수 있어요. 가짜뉴스 종이는 다른 고양이를 한 번 공격하게 해요. 쉼터에서 츄르를 사서 체력을 회복시키고 계절은 세 구간마다 바뀌어요.</p></div><div><span>05</span><b>모바일·저장</b><p>스마트폰에서는 좌우·점프·공격을 동시에 누를 수 있어요. 일시정지에서 이어하기 코드를 만들 수 있고 진행은 이 브라우저에 자동 저장돼요.</p></div></div><div class="modal-actions"><button class="primary-button" data-action="close-modal">알겠어요</button></div></section>`);
     this.focusModal();
   }
 

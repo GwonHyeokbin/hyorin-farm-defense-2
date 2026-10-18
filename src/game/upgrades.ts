@@ -30,7 +30,9 @@ export function applyUpgrade(state: GameState, key: UpgradeKey): boolean {
 
 export function repairFarm(state: GameState): boolean {
   const cost = 20;
-  if (state.resources < cost || state.farm.health >= state.farm.maxHealth) return false;
+  const structuresDamaged = state.farm.crops.some((crop) => crop.hp < crop.maxHp)
+    || Object.values(state.farm.facilities).some((facility) => facility.hp < facility.maxHp);
+  if (state.resources < cost || (state.farm.health >= state.farm.maxHealth && !structuresDamaged)) return false;
   state.resources -= cost;
   state.farm.health = Math.min(state.farm.maxHealth, state.farm.health + 24);
   for (const crop of state.farm.crops) crop.hp = Math.min(crop.maxHp, crop.hp + 16);

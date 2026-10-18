@@ -1,4 +1,4 @@
-export type EnemyKind = 'mole' | 'rabbit' | 'crow' | 'boar' | 'bear' | 'tiger' | 'wolf' | 'kingBoar';
+export type EnemyKind = 'mole' | 'rabbit' | 'crow' | 'boar' | 'bear' | 'tiger' | 'wolf' | 'fox' | 'raccoon' | 'kingBoar';
 export type WeaponType = 'slingshot' | 'bow' | 'crossbow' | 'pistol' | 'rifle';
 export type LegacyAmmoType = 'bb' | 'steelBb' | 'stone' | 'blast' | 'lightning' | 'meteor';
 export type AmmoType = WeaponType | LegacyAmmoType;

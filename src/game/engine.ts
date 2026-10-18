@@ -23,6 +23,8 @@ export const ENEMY_NAMES: Record<EnemyKind, string> = {
   bear: '곰',
   tiger: '호랑이',
   wolf: '늑대',
+  fox: '여우',
+  raccoon: '너구리',
   kingBoar: '왕멧돼지',
 };
 export type SeasonName = (typeof SEASONS)[number];
@@ -62,6 +64,8 @@ const ENEMY_INFO: Record<EnemyKind, { hp: number; speed: number; damage: number;
   bear: { hp: 106, speed: 27, damage: 12, score: 420, resource: 9, experience: 48 },
   tiger: { hp: 620, speed: 86, damage: 24, score: 2200, resource: 30, experience: 180 },
   wolf: { hp: 42, speed: 78, damage: 7, score: 275, resource: 6, experience: 31 },
+  fox: { hp: 36, speed: 84, damage: 6, score: 230, resource: 4, experience: 24 },
+  raccoon: { hp: 52, speed: 48, damage: 6, score: 240, resource: 5, experience: 28 },
   kingBoar: { hp: 260, speed: 47, damage: 14, score: 1600, resource: 25, experience: 120 },
 };
 
@@ -137,28 +141,87 @@ function beginWave(state: GameState): EngineEvent {
     phaseTimer: 0,
     elapsed: 0,
   };
-  return { type: 'wave-start', text: `${state.wave}구간 · ${seasonForWave(state.wave)} 모험 시작!` };
+  return { type: 'wave-start', text: `${state.wave}구간 · ${seasonForWave(state.wave)} 모험 시작!${state.wave % 5 === 0 ? ' 호랑이 보스가 다가와요!' : ''}` };
 }
 
 function chooseTarget(state: GameState, kind: EnemyKind): number {
-  if (kind === 'crow') return Math.floor(random(state) * CROP_TARGETS.length);
-  if (kind === 'rabbit') return Math.floor(random(state) * CROP_TARGETS.length);
-  if (kind === 'mole') return Math.floor(random(state) * CROP_TARGETS.length);
+  if (kind === 'crow' || kind === 'rabbit' || kind === 'mole' || kind === 'raccoon') return Math.floor(random(state) * CROP_TARGETS.length);
+  if (kind === 'wolf' || kind === 'fox') return CROP_TARGETS.length + 1;
   return CROP_TARGETS.length + Math.floor(random(state) * FACILITY_TARGETS.length);
+}
+
+interface FarmRaidTarget {
+  x: number;
+  y: number;
+  radius: number;
+  label: string;
+  cropIndex?: number;
+  facilityId?: string;
+}
+
+function getFarmRaidTarget(state: GameState, enemy: EnemyState): FarmRaidTarget | null {
+  const targets: (FarmRaidTarget | null)[] = [
+    ...CROP_TARGETS.map((position, index) => state.farm.crops[index].hp > 0
+      ? { ...position, label: `밭 ${index + 1}`, cropIndex: index }
+      : null),
+    ...FACILITY_TARGETS.map((position) => state.farm.facilities[position.id]?.hp > 0
+      ? { ...position, label: position.id === 'coop' ? '닭장' : position.id === 'barn' ? '헛간' : '곡식 창고', facilityId: position.id }
+      : null),
+  ];
+  const preferred = targets[enemy.targetIndex];
+  if (preferred) return preferred;
+  return targets
+    .map((target) => target ? { target, distance: Math.abs(target.x - enemy.x) } : null)
+    .filter((entry): entry is { target: FarmRaidTarget; distance: number } => entry !== null)
+    .sort((a, b) => a.distance - b.distance)[0]?.target ?? null;
+}
+
+function attackFarmTarget(state: GameState, enemy: EnemyState, target: FarmRaidTarget, events: EngineEvent[]): void {
+  const damage = ENEMY_INFO[enemy.kind].damage;
+  let destroyed = false;
+  if (target.cropIndex !== undefined) {
+    const crop = state.farm.crops[target.cropIndex];
+    crop.hp = Math.max(0, crop.hp - damage);
+    destroyed = crop.hp === 0;
+  } else if (target.facilityId) {
+    const facility = state.farm.facilities[target.facilityId];
+    if (facility) {
+      facility.hp = Math.max(0, facility.hp - damage);
+      destroyed = facility.hp === 0;
+    }
+  }
+  if (!destroyed) return;
+  const farmDamage = target.cropIndex !== undefined ? 15 : 20;
+  state.farm.health = Math.max(0, state.farm.health - farmDamage);
+  events.push({
+    type: 'farm-hit',
+    text: `${ENEMY_NAMES[enemy.kind]}가 ${target.label}에 피해를 줬어요. 농장 체력 ${state.farm.health}/${state.farm.maxHealth}`,
+  });
+}
+
+function keepOnlyOneLivingTiger(state: GameState): void {
+  const tigers = state.enemies.filter((enemy) => enemy.kind === 'tiger' && enemy.hp > 0);
+  if (tigers.length <= 1) return;
+  const strongestTiger = tigers.reduce((strongest, candidate) => candidate.maxHp > strongest.maxHp ? candidate : strongest);
+  state.enemies = state.enemies.filter((enemy) => enemy.kind !== 'tiger' || enemy.hp <= 0 || enemy === strongestTiger);
 }
 
 function spawnEnemy(state: GameState): void {
   const choice = random(state);
   let kind: EnemyKind;
-  if (state.wave % 5 === 0 && state.waveState.spawned === state.waveState.total - 1) kind = 'tiger';
+  if (state.wave % 5 === 0 && state.waveState.spawned === state.waveState.total - 1
+    && !state.enemies.some((enemy) => enemy.kind === 'tiger' && enemy.hp > 0)) kind = 'tiger';
   else if (state.wave < 2) kind = choice < 0.55 ? 'mole' : 'rabbit';
   else if (choice < 0.17) kind = 'mole';
   else if (choice < 0.34) kind = 'rabbit';
   else if (choice < 0.49) kind = 'crow';
   else if (choice < 0.63) kind = 'wolf';
-  else if (choice < 0.76) kind = 'boar';
-  else if (choice < 0.86 && state.wave % 5 !== 0) kind = 'tiger';
+  else if (choice < 0.73) kind = 'fox';
+  else if (choice < 0.82) kind = 'raccoon';
+  else if (choice < 0.91) kind = 'boar';
   else kind = 'bear';
+
+  if (kind === 'tiger' && state.enemies.some((enemy) => enemy.kind === 'tiger' && enemy.hp > 0)) kind = 'bear';
 
   const fromLeft = random(state) < 0.5;
   const x = PhaserMathClamp(state.player.x + (fromLeft ? -1 : 1) * (430 + random(state) * 220), 30, WORLD.width - 30);
@@ -371,7 +434,8 @@ function attackWithBoulder(state: GameState, events: EngineEvent[]): void {
 }
 
 function updateEnemy(state: GameState, enemy: EnemyState, dt: number, events: EngineEvent[], previousPlayerY: number): void {
-  const target = { x: state.player.x, y: state.player.y - 30, radius: 24 };
+  const farmTarget = getFarmRaidTarget(state, enemy);
+  const target = farmTarget ?? { x: state.player.x, y: state.player.y - 30, radius: 24 };
   enemy.moodTimer = Math.max(0, enemy.moodTimer - dt);
   enemy.statusTimer = Math.max(0, (enemy.statusTimer ?? 0) - dt);
   if (enemy.statusTimer <= 0) enemy.status = null;
@@ -416,7 +480,12 @@ function updateEnemy(state: GameState, enemy: EnemyState, dt: number, events: En
     enemy.x = PhaserMathClamp(enemy.x + direction * speed * dt, -24, WORLD.width + 24);
     if (enemy.kind === 'crow') enemy.y = PhaserMathClamp(enemy.y + dy / distance * speed * dt, 230, WORLD.groundY - 30);
     else enemy.y = WORLD.groundY - 20;
-  } else if (enemy.attackCooldown <= 0) enemy.attackCooldown = enemy.kind === 'tiger' ? 0.9 : enemy.kind === 'kingBoar' ? 1.15 : 1.4;
+  } else if (enemy.attackCooldown <= 0) {
+    if (farmTarget) {
+      enemy.attackCooldown = enemy.kind === 'tiger' ? 1.8 : enemy.kind === 'fox' || enemy.kind === 'raccoon' ? 1.2 : 1.5;
+      attackFarmTarget(state, enemy, farmTarget, events);
+    } else enemy.attackCooldown = enemy.kind === 'tiger' ? 0.9 : enemy.kind === 'kingBoar' ? 1.15 : 1.4;
+  }
 
   const playerTop = state.player.y - PLAYER_STAGE_HEIGHTS[state.player.stage];
   const enemyTop = enemy.y - (enemy.kind === 'tiger' ? 52 : enemy.kind === 'kingBoar' || enemy.kind === 'bear' ? 42 : 22);
@@ -530,7 +599,8 @@ function updatePets(state: GameState, dt: number, events: EngineEvent[]): void {
 function damagePet(pet: GameState['pets'][number], damage: number, events: EngineEvent[], text: string): void {
   if (pet.hp <= 0) return;
   pet.hp = Math.max(0, pet.hp - damage);
-  events.push({ type: 'pet-damaged', text: pet.hp <= 0 ? `${text} ${pet.type}의 체력이 0이 됐어요. 쉼터에서 츄르를 먹여 주세요.` : text });
+  const petName = getPetDefinition(pet.type).name;
+  events.push({ type: 'pet-damaged', text: pet.hp <= 0 ? `${text} ${petName}의 체력이 0이 됐어요. 쉼터에서 츄르를 먹여 주세요.` : text });
 }
 
 function spawnRottenWatermelon(state: GameState): void {
@@ -579,7 +649,7 @@ function updateHazards(state: GameState, dt: number, events: EngineEvent[]): voi
     const target = state.pets.find((pet) => pet.hp > 0 && pet.stunnedUntilWave <= state.wave && Math.hypot(pet.x - hazard.x, pet.y - hazard.y) <= 38);
     if (target) {
       target.stunnedUntilWave = state.wave + 2;
-      events.push({ type: 'pet-stunned', text: `썩은 수박에 닿은 ${target.type}가 한 구간 동안 기절했어요.` });
+      events.push({ type: 'pet-stunned', text: `썩은 수박에 닿은 ${getPetDefinition(target.type).name}가 한 구간 동안 기절했어요.` });
     } else if (hazard.life > 0) remainingWatermelons.push(hazard);
   }
   state.rottenWatermelons = remainingWatermelons;
@@ -593,7 +663,7 @@ function updateHazards(state: GameState, dt: number, events: EngineEvent[]): voi
       const other = state.pets
         .filter((pet) => pet.type !== target.type && pet.hp > 0)
         .sort((a, b) => Math.hypot(a.x - target.x, a.y - target.y) - Math.hypot(b.x - target.x, b.y - target.y))[0];
-      if (other) damagePet(other, FAKE_NEWS_FRIENDLY_FIRE_DAMAGE, events, `가짜뉴스 종이에 놀란 ${target.type}가 ${other.type}를 한 번 공격했어요.`);
+      if (other) damagePet(other, FAKE_NEWS_FRIENDLY_FIRE_DAMAGE, events, `가짜뉴스 종이에 놀란 ${getPetDefinition(target.type).name}가 ${getPetDefinition(other.type).name}를 한 번 공격했어요.`);
       else events.push({ type: 'fake-news', text: '가짜뉴스가 사라졌어요. 공격할 다른 고양이가 없어요.' });
     } else if (paper.life > 0 && paper.x > 20 && paper.x < WORLD.width - 20) remainingPapers.push(paper);
   }
@@ -605,7 +675,7 @@ function updateHazards(state: GameState, dt: number, events: EngineEvent[]): voi
       if (pet.hp <= 0 || pet.stunnedUntilWave > state.wave || pet.damageCooldown > 0) continue;
       if (Math.hypot(enemy.x - pet.x, enemy.y - pet.y) > (enemy.kind === 'bear' ? 48 : 36)) continue;
       pet.damageCooldown = 1.3;
-      damagePet(pet, Math.max(4, ENEMY_INFO[enemy.kind].damage), events, `${pet.type}가 ${ENEMY_NAMES[enemy.kind]}에게 공격받았어요.`);
+      damagePet(pet, Math.max(4, ENEMY_INFO[enemy.kind].damage), events, `${getPetDefinition(pet.type).name}가 ${ENEMY_NAMES[enemy.kind]}에게 공격받았어요.`);
     }
   }
 }
@@ -723,6 +793,7 @@ export function stepWorld(state: GameState, rawDt: number, controls: Controls = 
     }
   }
 
+  keepOnlyOneLivingTiger(state);
   for (const enemy of state.enemies) updateEnemy(state, enemy, dt, events, previousY);
   updateHazards(state, dt, events);
   updatePets(state, dt, events);
@@ -804,6 +875,7 @@ export function stepWorld(state: GameState, rawDt: number, controls: Controls = 
     state.stats.wavesCleared += 1;
     state.farm.health = Math.min(state.farm.maxHealth, state.farm.health + 6);
     for (const crop of state.farm.crops) crop.hp = Math.min(crop.maxHp, crop.hp + 8);
+    for (const facility of Object.values(state.farm.facilities)) facility.hp = Math.min(facility.maxHp, facility.hp + 8);
     events.push({ type: 'wave-clear', text: `${state.wave}구간 통과!` });
   }
 

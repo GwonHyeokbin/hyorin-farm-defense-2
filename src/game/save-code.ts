@@ -172,7 +172,7 @@ export function isValidGameState(value: unknown): value is GameState {
   if (!finite(value.waveState.spawnTimer, 0, 1000) || !finite(value.waveState.phaseTimer, 0, 1000) || !finite(value.waveState.elapsed, 0, 1_000_000)) return false;
   if (!isRecord(value.stats) || !finite(value.stats.kills, 0, 10_000_000) || !finite(value.stats.protectedCrops, 0, 10_000_000) || !finite(value.stats.wavesCleared, 0, 100_000)) return false;
   if (!Array.isArray(value.enemies) || value.enemies.length > 80 || !Array.isArray(value.projectiles) || value.projectiles.length > 200) return false;
-  const kinds = ['mole', 'rabbit', 'crow', 'boar', 'bear', 'tiger', 'wolf', 'kingBoar'];
+  const kinds = ['mole', 'rabbit', 'crow', 'boar', 'bear', 'tiger', 'wolf', 'fox', 'raccoon', 'kingBoar'];
   for (const enemy of value.enemies) {
     if (!isRecord(enemy) || !kinds.includes(String(enemy.kind))) return false;
     if (!finite(enemy.id, 1, 10_000_000) || !finite(enemy.x, -1000, WORLD.width + 1000) || !finite(enemy.y, -1000, WORLD.height + 1000)) return false;

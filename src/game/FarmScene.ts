@@ -22,6 +22,8 @@ const SPRITES = {
   bear: 'bear',
   tiger: 'tiger',
   wolf: 'wolf',
+  fox: 'fox',
+  raccoon: 'raccoon',
   kingBoar: 'king-boar',
 } as const;
 
@@ -94,6 +96,8 @@ export class FarmScene extends Phaser.Scene {
     this.load.svg('bear', root + 'bear.svg', { width: 96, height: 88 });
     this.load.svg('tiger', root + 'tiger.svg', { width: 96, height: 80 });
     this.load.svg('wolf', root + 'wolf.svg', { width: 88, height: 72 });
+    this.load.svg('fox', root + 'fox.svg', { width: 88, height: 76 });
+    this.load.svg('raccoon', root + 'raccoon.svg', { width: 88, height: 76 });
     this.load.svg('king-boar', root + 'king-boar.svg', { width: 112, height: 98 });
     this.load.svg('bb-pellet', root + 'bb-pellet.svg', { width: 32, height: 32 });
     this.load.svg('steel-bb-pellet', root + 'steel-bb-pellet.svg', { width: 32, height: 32 });
@@ -600,7 +604,7 @@ export class FarmScene extends Phaser.Scene {
       sprite.setPosition(enemy.x, enemy.y + bob);
       sprite.setDepth(enemy.y + 12);
       sprite.setAlpha(enemy.kind === 'mole' && enemy.mood === 'burrow' ? 0.12 : 1);
-      sprite.setScale(enemy.kind === 'tiger' ? 1.1 : enemy.kind === 'kingBoar' ? 0.85 : enemy.kind === 'bear' ? 0.75 : enemy.kind === 'wolf' ? 0.58 : enemy.kind === 'boar' ? 0.61 : 0.55);
+      sprite.setScale(enemy.kind === 'tiger' ? 1.1 : enemy.kind === 'kingBoar' ? 0.85 : enemy.kind === 'bear' ? 0.75 : enemy.kind === 'wolf' ? 0.58 : enemy.kind === 'fox' || enemy.kind === 'raccoon' ? 0.62 : enemy.kind === 'boar' ? 0.61 : 0.55);
       if (enemy.hitFlash > 0) sprite.setTint(0xffeee0);
       else sprite.clearTint();
       sprite.setRotation(enemy.kind === 'crow' ? Math.sin(time * 4 + enemy.id) * 0.05 : 0);
