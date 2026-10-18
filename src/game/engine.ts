@@ -160,6 +160,7 @@ interface FarmRaidTarget {
 }
 
 function getFarmRaidTarget(state: GameState, enemy: EnemyState): FarmRaidTarget | null {
+  if (!['wolf', 'fox', 'raccoon', 'boar', 'bear', 'tiger', 'kingBoar'].includes(enemy.kind)) return null;
   const targets: (FarmRaidTarget | null)[] = [
     ...CROP_TARGETS.map((position, index) => state.farm.crops[index].hp > 0
       ? { ...position, label: `밭 ${index + 1}`, cropIndex: index }
